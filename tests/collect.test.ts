@@ -78,4 +78,16 @@ describe('collect', () => {
       'a.b.c': 'OJBK.deeply.nested.value',
     });
   });
+
+  it('handles root-level array of objects', () => {
+    const input = [
+      { x: ref.a },
+      { y: ref.b },
+    ];
+
+    expect(collect(input)).toEqual({
+      '0.x': 'OJBK.a',
+      '1.y': 'OJBK.b',
+    });
+  });
 });

@@ -33,25 +33,31 @@ export const createRef = (id: string, path: string[] = []): RefType => {
 export const collect = (obj: any): Record<string, string> => {
   const result: Record<string, string> = {};
 
-  const walk = (current: any, path: string[] = []) => {
-    if (current && typeof current === 'object') {
+  const walk = (current: any, path: (string | number)[] = []) => {
+    if (Array.isArray(current)) {
+      current.forEach((item, index) => {
+        walk(item, [...path, index]);
+      });
+    } else if (typeof current === 'object' && current !== null) {
       for (const key of Object.keys(current)) {
         const value = current[key];
         const newPath = [...path, key];
 
-        // 正确方式：判断是否是 RefKey 对象
         if (value?.$ref instanceof RefKey) {
-          result[newPath.join('.')] = `${value.$ref.id}.${value.$ref.path}`;
-        } else if (typeof value === 'object' && value !== null) {
+          result[pathToDotString(newPath)] = `${value.$ref.id}.${value.$ref.path}`;
+        } else {
           walk(value, newPath);
         }
       }
     }
-  }
+  };
+
+  const pathToDotString = (segments: (string | number)[]): string =>
+    segments.map(String).join('.');
 
   walk(obj);
   return result;
-}
+};
 
 export const inject = (to: any, from: any, mapping: Record<string, string>): void => {
   for (const [toPath, fromPath] of Object.entries(mapping)) {
