@@ -17,69 +17,68 @@ type RefType = {
 };
 
 export const createRef = (id: string, path: string[] = []): RefType => {
-    const handler: ProxyHandler<any> = {
-        get(_, prop: string | symbol) {
-            if (prop === '$ref') {
-                return new RefKey(id, path.join('.'));
-            }
-            if (typeof prop === 'symbol') return undefined;
-            return createRef(id, [...path, prop]);
-        },
-    };
+  const handler: ProxyHandler<any> = {
+    get(_, prop: string | symbol) {
+      if (prop === '$ref') {
+        return new RefKey(id, path.join('.'));
+      }
+      if (typeof prop === 'symbol') return undefined;
+      return createRef(id, [...path, prop]);
+    },
+  };
 
-    return new Proxy({}, handler) as RefType;
+  return new Proxy({}, handler) as RefType;
 }
 
 export const collect = (obj: any): Record<string, string> => {
-    const result: Record<string, string> = {};
+  const result: Record<string, string> = {};
 
-    const walk = (current: any, path: string[] = []) => {
-        if (current && typeof current === 'object') {
-            for (const key of Object.keys(current)) {
-                const value = current[key];
-                const newPath = [...path, key];
+  const walk = (current: any, path: string[] = []) => {
+    if (current && typeof current === 'object') {
+      for (const key of Object.keys(current)) {
+        const value = current[key];
+        const newPath = [...path, key];
 
-                // 正确方式：判断是否是 RefKey 对象
-                if (value?.$ref instanceof RefKey) {
-                    result[newPath.join('.')] = `${value.$ref.id}.${value.$ref.path}`;
-                } else if (typeof value === 'object' && value !== null) {
-                    walk(value, newPath);
-                }
-            }
+        // 正确方式：判断是否是 RefKey 对象
+        if (value?.$ref instanceof RefKey) {
+          result[newPath.join('.')] = `${value.$ref.id}.${value.$ref.path}`;
+        } else if (typeof value === 'object' && value !== null) {
+          walk(value, newPath);
         }
+      }
     }
+  }
 
-    walk(obj);
-    return result;
+  walk(obj);
+  return result;
 }
 
-
 export const inject = (to: any, from: any, mapping: Record<string, string>): void => {
-    for (const [toPath, fromPath] of Object.entries(mapping)) {
-        const toKeys = toPath.split('.');
-        const fromKeys = fromPath.split('.');
+  for (const [toPath, fromPath] of Object.entries(mapping)) {
+    const toKeys = toPath.split('.');
+    const fromKeys = fromPath.split('.');
 
-        // 获取源值
-        let fromValue = from;
-        for (const key of fromKeys) {
-            if (fromValue == null) break;
-            fromValue = fromValue[key];
-        }
-
-        // 递归创建目标路径并赋值
-        let current = to;
-        for (let i = 0; i < toKeys.length; i++) {
-            const key = toKeys[i];
-            if (i === toKeys.length - 1) {
-                current[key] = fromValue;
-            } else {
-                if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
-                    current[key] = {};
-                }
-                current = current[key];
-            }
-        }
+    // 获取源值
+    let fromValue = from;
+    for (const key of fromKeys) {
+      if (fromValue == null) break;
+      fromValue = fromValue[key];
     }
+
+    // 递归创建目标路径并赋值
+    let current = to;
+    for (let i = 0; i < toKeys.length; i++) {
+      const key = toKeys[i];
+      if (i === toKeys.length - 1) {
+        current[key] = fromValue;
+      } else {
+        if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+          current[key] = {};
+        }
+        current = current[key];
+      }
+    }
+  }
 };
 
 // const from = {
