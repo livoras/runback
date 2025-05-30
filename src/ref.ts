@@ -116,6 +116,53 @@ export const inject = (to: any, from: any, mapping: Record<string, string>): voi
   }
   */
   
+  export const collectFromRefString = (obj: any): Record<string, string> => {
+    const result: Record<string, string> = {};
+  
+    const walk = (current: any, path: (string | number)[] = []) => {
+      if (Array.isArray(current)) {
+        current.forEach((item, index) => {
+          walk(item, [...path, index]);
+        });
+      } else if (typeof current === 'object' && current !== null) {
+        for (const key of Object.keys(current)) {
+          const value = current[key];
+          const newPath = [...path, key];
+  
+          if (typeof value === 'string' && value.startsWith('$ref.')) {
+            result[newPath.join('.')] = value.slice(5); // 去掉 $ref.
+          } else {
+            walk(value, newPath);
+          }
+        }
+      }
+    };
+  
+    walk(obj);
+    return result;
+  };
+  
+
+
+const input = {
+  users: [
+    { name: '$ref.REF.a.b' },
+    { name: 'Not a ref' },
+    { profile: { email: '$ref.REF.x.y' } }
+  ],
+  meta: {
+    version: '$ref.SYS.version'
+  }
+};
+
+console.log(collectFromRefString(input));
+/*
+{
+  "users[0].name": "REF.a.b",
+  "users[2].profile.email": "REF.x.y",
+  "meta.version": "SYS.version"
+}
+*/
 
 
 
