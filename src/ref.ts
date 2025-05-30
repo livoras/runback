@@ -120,20 +120,18 @@ export const inject = (to: any, from: any, mapping: Record<string, string>): voi
     const result: Record<string, string> = {};
   
     const walk = (current: any, path: (string | number)[] = []) => {
+      if (typeof current === 'string' && current.startsWith('$ref.')) {
+        result[path.join('.')] = current.slice(5);
+        return;
+      }
+  
       if (Array.isArray(current)) {
         current.forEach((item, index) => {
           walk(item, [...path, index]);
         });
       } else if (typeof current === 'object' && current !== null) {
         for (const key of Object.keys(current)) {
-          const value = current[key];
-          const newPath = [...path, key];
-  
-          if (typeof value === 'string' && value.startsWith('$ref.')) {
-            result[newPath.join('.')] = value.slice(5); // 去掉 $ref.
-          } else {
-            walk(value, newPath);
-          }
+          walk(current[key], [...path, key]);
         }
       }
     };
@@ -144,16 +142,7 @@ export const inject = (to: any, from: any, mapping: Record<string, string>): voi
   
 
 
-const input = {
-  users: [
-    { name: '$ref.REF.a.b' },
-    { name: 'Not a ref' },
-    { profile: { email: '$ref.REF.x.y' } }
-  ],
-  meta: {
-    version: '$ref.SYS.version'
-  }
-};
+const input =  { message: ["$ref.logId", "$ref.logId2"] }
 
 console.log(collectFromRefString(input));
 /*

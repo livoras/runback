@@ -36,7 +36,7 @@ const actions = {
       throw new Error("id is required")
     }
     logGreen("run action getUserInfo", options.id)
-    return { name: "lily"  }
+    return { name: "tom"  }
   },
   sayHi: ({ input: { name } }: { input: { name: string } }) => {
     logGreen(`run action sayHi!! ${name}`)
@@ -44,6 +44,7 @@ const actions = {
   },
   log: ({ message }: { message: string }) => {
     logGreen(`run action log ${message}`)
+    return "OJBK"
   },
   checkUserName: ({ name }: { name: string }) => {
     logGreen("run action checkUserName", name)
@@ -167,6 +168,8 @@ const wf = new Workflow({
     { id: "checkUserName", action: "checkUserName", options: { name: "$ref.getUserInfoId.name" }, type: "if" },
     { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" } }, depends: ["checkUserName.true"] },
     { id: "logId", action: "log", options: { message: "$ref.sayHiId.result" } },
+    { id: "logId2", action: "log", options: { message: "$ref.sayHiId.result" } },
+    { id: "logId3", action: "log", options: { message: ["$ref.logId", "$ref.logId2"] } },
   ]
 })
 
