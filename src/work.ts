@@ -36,7 +36,7 @@ const actions = {
       throw new Error("id is required")
     }
     logGreen("run action getUserInfo", options.id)
-    return { name: "tom"  }
+    return { name: "jerry"  }
   },
   sayHi: ({ input: { name } }: { input: { name: string } }) => {
     logGreen(`run action sayHi!! ${name}`)
@@ -65,7 +65,7 @@ const isAllDepsMet = (deps: string[], setKeys: Set<string>) => {
   // console.log("check met", deps, setKeys)
   return deps.every(dep => {
     const prefixes = getPrefixes(dep)
-    // console.log('check dep', dep, prefixes, prefixes.some(prefix => setKeys.has(prefix)))
+    // console.log('check dep~~~~~~~', dep, prefixes, prefixes.some(prefix => setKeys.has(prefix)), setKeys)
     return prefixes.some(prefix => setKeys.has(prefix))
   })
 }
@@ -93,39 +93,48 @@ class Workflow {
     let ctx = createProxy({}, (path, value) => {
       console.log('--> change', path, value)
       setKeys.add(path)
+      console.log('after setKeys', setKeys)
     })
-    while (true) {
-      step = this.getNextStep(options || {}, stepsNotRun, ctx, setKeys);
-      if (!step) {
-        console.log('no step to run done!');
-        break;
-      }
-
-      console.log(step.id, '--->');
-      const action = options?.actions?.[step.action];
-      if (!action) {
-        throw new Error(`action ${step.action} not found`)
-      }
+    while (stepsNotRun.length > 0) {
+      const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys);
+      if (readySteps.length === 0) break;
       console.log('\n--------------------------------')
-
-      let actionOption;
-      if (step.options) {
-        actionOption = clone(step.options)
-        const mapping = collectFromRefString(actionOption)
-        inject(actionOption, ctx, mapping)
-      }
-
-      console.log('calling action', step.action, step.options, actionOption)
-      const result = actionOption ? await action(actionOption) : await action()
-      if (step.type === 'if') {
-        const branch = result ? "true" : "false"
-        ctx[`${step.id}.${branch}`] = true
-      } else {
-        ctx[step.id] = result
-      }
-
-      this.moveStepToRun(step, stepsNotRun, stepsRun);
+      console.log('readySteps', readySteps)
+    
+      await Promise.all(readySteps.map(async step => {
+        const action = options?.actions?.[step.action];
+        if (!action) throw new Error(`action ${step.action} not found`);
+    
+        let actionOption;
+        if (step.options) {
+          actionOption = clone(step.options);
+          const mapping = collectFromRefString(actionOption);
+          inject(actionOption, ctx, mapping);
+        }
+    
+        const result = actionOption ? await action(actionOption) : await action();
+        if (step.type === 'if') {
+          const branch = result ? 'true' : 'false'
+          ctx[`${step.id}.${branch}`] = result === true;
+        } else {
+          ctx[step.id] = result;
+        }
+    
+        this.moveStepToRun(step, stepsNotRun, stepsRun);
+      }));
     }
+  }
+
+  getAllRunnableSteps(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>) {
+    return stepsNotRun.filter(step => {
+      if (step.id === runOptions?.entry) return true;
+      const deps = this.deps[step.id];
+      if (deps.length === 0) {
+        console.warn(`step ${step.id} has no deps, but it is not entry`)
+      }
+      // console.log('check deps', step.id, deps, setKeys)
+      return isAllDepsMet(deps, setKeys);
+    });
   }
 
   getNextStep(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>) {
