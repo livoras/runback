@@ -75,24 +75,29 @@ class Workflow {
         console.log('no step to run done!');
         break;
       }
+
       console.log(step.id, '--->');
       const action = options?.actions?.[step.action];
-      if (action) {
-        let actionOption;
-        if (step.options) {
-          actionOption = clone(step.options)
-          const mapping = collectFromRefString(actionOption)
-          inject(actionOption, ctx, mapping)
-        }
-        console.log('calling action', step.action, step.options, actionOption)
-        const result = actionOption ? await action(actionOption) : await action()
-        if (step.type === 'if') {
-          const branch = result ? "true" : "false"
-          ctx[step.id][branch] = true
-        } else {
-          ctx[step.id] = result
-        }
+      if (!action) {
+        throw new Error(`action ${step.action} not found`)
       }
+
+      let actionOption;
+      if (step.options) {
+        actionOption = clone(step.options)
+        const mapping = collectFromRefString(actionOption)
+        inject(actionOption, ctx, mapping)
+      }
+
+      console.log('calling action', step.action, step.options, actionOption)
+      const result = actionOption ? await action(actionOption) : await action()
+      if (step.type === 'if') {
+        const branch = result ? "true" : "false"
+        ctx[step.id][branch] = true
+      } else {
+        ctx[step.id] = result
+      }
+
       this.moveStepToRun(step, stepsNotRun, stepsRun);
     }
   }
