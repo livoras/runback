@@ -54,6 +54,66 @@ export const collect = (obj: any): Record<string, string> => {
 }
 
 
+export const inject = (to: any, from: any, mapping: Record<string, string>): void => {
+    for (const [toPath, fromPath] of Object.entries(mapping)) {
+        const toKeys = toPath.split('.');
+        const fromKeys = fromPath.split('.');
+
+        // 获取源值
+        let fromValue = from;
+        for (const key of fromKeys) {
+            if (fromValue == null) break;
+            fromValue = fromValue[key];
+        }
+
+        // 递归创建目标路径并赋值
+        let current = to;
+        for (let i = 0; i < toKeys.length; i++) {
+            const key = toKeys[i];
+            if (i === toKeys.length - 1) {
+                current[key] = fromValue;
+            } else {
+                if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+                    current[key] = {};
+                }
+                current = current[key];
+            }
+        }
+    }
+};
+
+// const from = {
+//     user: {
+//         name: 'Bob',
+//         email: 'alice@example.com',
+//     },
+// };
+
+// const to: any = { 'test': { 'name': 'Alice' }, 'good': { 'name': 'Bob' } };
+
+// const mapping = {
+//     'profile.username': 'user.name',
+//     'profile.contact.email': 'user.email',
+//     'good.name': 'user.name',
+// };
+
+// inject(to, from, mapping);
+
+// console.log(to);
+  /*
+  {
+    profile: {
+      username: 'Alice',
+      contact: {
+        email: 'alice@example.com'
+      }
+    }
+  }
+  */
+  
+
+
+
 // ✅ 使用示例
 // const ref = createRef('ojbk');
 
