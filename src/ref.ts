@@ -1,39 +1,85 @@
 export class RefKey {
-    constructor(public id: string, public path: string) {}
-  
+    constructor(public id: string, public path: string) { }
+
     toString(): string {
-      return `${this.id}.${this.path}`;
+        return `${this.id}.${this.path}`;
     }
-  
+
     [Symbol.toPrimitive](): string {
-      return this.toString();
+        return this.toString();
     }
-  }
-  
-  type RefType = {
+}
+
+type RefType = {
     [key: string]: RefType;
-  } & {
+} & {
     $ref: RefKey;
-  };
-  
-  export function createRef(id: string, path: string[] = []): RefType {
+};
+
+export const createRef = (id: string, path: string[] = []): RefType => {
     const handler: ProxyHandler<any> = {
-      get(_, prop: string | symbol) {
-        if (prop === '$ref') {
-          return new RefKey(id, path.join('.'));
-        }
-        if (typeof prop === 'symbol') return undefined;
-        return createRef(id, [...path, prop]);
-      },
+        get(_, prop: string | symbol) {
+            if (prop === '$ref') {
+                return new RefKey(id, path.join('.'));
+            }
+            if (typeof prop === 'symbol') return undefined;
+            return createRef(id, [...path, prop]);
+        },
     };
-  
+
     return new Proxy({}, handler) as RefType;
-  }
-  
-//   // ✅ 使用示例
-//   const ref = createRef('ojbk');
-  
-//   console.log(ref.a.b.c.$ref.id);     // "ojbk"
-//   console.log(ref.a.b.c.$ref.path);   // "a.b.c"
-//   console.log(ref.a.b.c.$ref);   // "ojbk.a.b.c"
-  
+}
+
+export const collect = (obj: any): Record<string, string> => {
+    const result: Record<string, string> = {};
+
+    const walk = (current: any, path: string[] = []) => {
+        if (current && typeof current === 'object') {
+            for (const key of Object.keys(current)) {
+                const value = current[key];
+                const newPath = [...path, key];
+
+                // 正确方式：判断是否是 RefKey 对象
+                if (value?.$ref instanceof RefKey) {
+                    result[newPath.join('.')] = `${value.$ref.id}.${value.$ref.path}`;
+                } else if (typeof value === 'object' && value !== null) {
+                    walk(value, newPath);
+                }
+            }
+        }
+    }
+
+    walk(obj);
+    return result;
+}
+
+
+// ✅ 使用示例
+// const ref = createRef('ojbk');
+
+// console.log(ref.a.b.c.$ref.id);     // "ojbk"
+// console.log(ref.a.b.c.$ref.path);   // "a.b.c"
+// console.log(ref.b.$ref.toString())
+
+// const ref2 = createRef("OJBK");
+
+// const input = {
+//     user: {
+//         name: ref2.remote.data.name,
+//         age: 13,
+//     },
+//     settings: {
+//         token: ref2.api.token,
+//         theme: 'dark',
+//     },
+// };
+
+// console.log(collect(input));
+
+// /*
+// {
+//   "user.name": "OJBK.remote.data.name",
+//   "settings.token": "OJBK.api.token"
+// }
+// */
+
