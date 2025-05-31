@@ -100,76 +100,104 @@ export class Workflow {
   }
 
   async run(options?: RunOptions, stepsNotRun: Step[] = [...this.options.steps], stepsRun: Step[] = []) {
-    // console.log("TODO", options)
     let setKeys: Set<string> = new Set()
-    let step;
-    let ctx = createProxy({}, (path, value) => {
+    let ctx = this.createContext(setKeys)
+    
+    while (stepsNotRun.length > 0) {
+      const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys)
+      if (readySteps.length === 0) break
+      
+      console.log('\n--------------------------------')
+      console.log('readySteps', readySteps)
+      
+      await Promise.all(readySteps.map(step => 
+        this.executeStep(step, options, ctx, stepsNotRun, stepsRun)
+      ))
+    }
+  }
+  
+  private createContext(setKeys: Set<string>) {
+    return createProxy({}, (path, value) => {
       console.log('--> change', path, value)
       setKeys.add(path)
       console.log('after setKeys', setKeys)
     })
-    while (stepsNotRun.length > 0) {
-      const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys);
-      if (readySteps.length === 0) break;
-      console.log('\n--------------------------------')
-      console.log('readySteps', readySteps)
+  }
+  
+  private async executeStep(step: Step, options: RunOptions | undefined, ctx: any, stepsNotRun: Step[], stepsRun: Step[]) {
+    const action = options?.actions?.[step.action]
+    if (!action) throw new Error(`action ${step.action} not found`)
     
-      await Promise.all(readySteps.map(async step => {
-        const action = options?.actions?.[step.action];
-        if (!action) throw new Error(`action ${step.action} not found`);
-    
-        let actionOption: any;
-        if (step.options) {
-          actionOption = clone(step.options);
-          const mapping = collectFromRefString(actionOption);
-          inject(actionOption, ctx, mapping);
-        }
-    
-        if (!step.each) {
-          const result = actionOption ? await action(actionOption) : await action();
-          if (step.type === 'if') {
-            const branch = result ? 'true' : 'false'
-            ctx[`${step.id}.${branch}`] = result === true;
-          } else {
-            ctx[step.id] = result;
-          }
-        } else {
-          console.log("each step")
-          const each = step.each.replace("$ref.", '')
-          const list = getByPath(ctx, each)
-          console.log(each, list)
-          const results: any[] = []
-          await Promise.all(list.map(async (item: any, index: number) => {
-            let itemOptions
-            if (step.options) {
-              itemOptions = clone(step.options)
-              const mapping = collectFromRefString(itemOptions);
-              inject(itemOptions, { ...ctx, $item: item, $index: index }, mapping);
-            }
-            const result = itemOptions ? await action(itemOptions) : await action();
-            console.log('each result', result)
-            results.push(result)
-          }))
-          console.log('run each results', results)
-          ctx[step.id] = results
-        }
-
-        this.moveStepToRun(step, stepsNotRun, stepsRun);
-      }));
+    if (step.each) {
+      await this.executeEachStep(step, action, ctx)
+    } else {
+      await this.executeNormalStep(step, action, ctx)
     }
+    
+    this.moveStepToRun(step, stepsNotRun, stepsRun)
+  }
+  
+  private async executeNormalStep(step: Step, action: Function, ctx: any) {
+    const actionOption = this.prepareActionOptions(step, ctx)
+    const result = actionOption ? await action(actionOption) : await action()
+    
+    if (step.type === 'if') {
+      const branch = result ? 'true' : 'false'
+      ctx[`${step.id}.${branch}`] = result === true
+    } else {
+      ctx[step.id] = result
+    }
+    
+    return result
+  }
+  
+  private async executeEachStep(step: Step, action: Function, ctx: any) {
+    console.log("each step")
+    const each = step.each!.replace("$ref.", '')
+    const list = getByPath(ctx, each)
+    console.log(each, list)
+    
+    const results: any[] = []
+    await Promise.all(list.map(async (item: any, index: number) => {
+      const itemOptions = this.prepareEachItemOptions(step, ctx, item, index)
+      const result = itemOptions ? await action(itemOptions) : await action()
+      console.log('each result', result)
+      results.push(result)
+    }))
+    
+    console.log('run each results', results)
+    ctx[step.id] = results
+    return results
+  }
+  
+  private prepareActionOptions(step: Step, ctx: any) {
+    if (!step.options) return undefined
+    
+    const actionOption = clone(step.options)
+    const mapping = collectFromRefString(actionOption)
+    inject(actionOption, ctx, mapping)
+    return actionOption
+  }
+  
+  private prepareEachItemOptions(step: Step, ctx: any, item: any, index: number) {
+    if (!step.options) return undefined
+    
+    const itemOptions = clone(step.options)
+    const mapping = collectFromRefString(itemOptions)
+    inject(itemOptions, { ...ctx, $item: item, $index: index }, mapping)
+    return itemOptions
   }
 
   getAllRunnableSteps(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>) {
     return stepsNotRun.filter(step => {
-      if (step.id === runOptions?.entry) return true;
-      const deps = this.deps[step.id];
+      if (step.id === runOptions?.entry) return true
+      const deps = this.deps[step.id]
       if (deps.length === 0) {
         console.warn(`step ${step.id} has no deps, but it is not entry`)
         return false
       }
-      // console.log('check deps', step.id, deps, setKeys)
-      return isAllDepsMet(deps, setKeys);
-    });
+      return isAllDepsMet(deps, setKeys)
+    })
   }
 
   getNextStep(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>) {
