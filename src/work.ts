@@ -55,4 +55,10 @@ export class Work {
     }
     return this.json()
   }
+
+  public async run(options: RunOptions) {
+    const steps = Object.values(this.stepsMap)
+    const workflow = new Workflow({ steps })
+    return await workflow.run({ ...options, actions: this.actions || {} })
+  }
 }

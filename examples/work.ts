@@ -45,13 +45,15 @@ import { Work } from '../src/work'
     //     }
     // })
 
-    await work.step({
-        id: 'every-letter',
-        action: 'every-letter',
-        each: "$ref.split",
-        options: {
-            letter: "$ref.$item"
-        }
-    })
-    console.dir(work.lastRun, { depth: null, colors: true })
+    // await work.step({
+    //     id: 'every-letter',
+    //     action: 'every-letter',
+    //     each: "$ref.split",
+    //     options: {
+    //         letter: "$ref.$item"
+    //     }
+    // })
+    // console.dir(work.lastRun, { depth: null, colors: true })
+    console.log(work.steps)
+    await work.run({ entry: 'step1', entryOptions: { name: 'It works!' } })
   })()
