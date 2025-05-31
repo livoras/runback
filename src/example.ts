@@ -148,6 +148,7 @@ if (require.main === module) {
       steps: [
         { id: "step1", action: "step1" },
         { id: "step2", action: "step2", each: "$ref.step1", options: { user: "$ref.$item" } },
+        { id: "step3", action: "step3", options: { total: "$ref.step2.length" } },
       ]
     })
     const actions = {
@@ -157,12 +158,16 @@ if (require.main === module) {
       step2: async (options: { user: any }) => {
         await new Promise(resolve => setTimeout(resolve, 1000))
         return { userName: options.user.name }
+      },
+      step3: async (options: { total: any }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return options.total + 1
       }
     }
     const history = await workflow.run({ actions, entry: "step1" })
     console.dir(history, { depth: null, colors: true })
 
-    const history2 = await workflow.run({ actions, entry: "step1", history, onlyRuns: ["step2"] })
+    const history2 = await workflow.run({ actions, entry: "step2", history, resume: true })
     console.dir(history2, { depth: null, colors: true })
   })();
 }

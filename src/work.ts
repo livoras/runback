@@ -26,6 +26,7 @@ export type RunOptions = {
   onlyRuns?: string[],
   entry?: string,
   logLevel?: LogLevel,
+  resume?: boolean,
 }
 
 // 步骤执行记录
@@ -224,10 +225,15 @@ export class Workflow {
       let ctx = this.createContext(setKeys)
       
       // 如果指定了 onlyRuns，从历史记录恢复上下文
-      if (options?.onlyRuns?.length) {
-        this.logger.info(`Running only specified steps: ${options.onlyRuns.join(', ')}`);
+      if (options?.onlyRuns?.length || options?.resume) {
+        if (options?.onlyRuns?.length) {
+          this.logger.info(`Running only specified steps: ${options.onlyRuns?.join(', ')}`);
+        }
+
+        if (options?.resume) {
+          this.logger.info('Resuming workflow execution');
+        }
         
-        // 在 onlyRuns 模式下，从历史记录恢复上下文
         if (history.length > 0) {
           const lastRecord = history[history.length - 1];
           ctx = this.createContext(setKeys, lastRecord.context);
