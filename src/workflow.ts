@@ -49,7 +49,7 @@ interface StepExecutionRecord {
 }
 
 // 工作流运行记录
-interface RunHistoryRecord {
+export interface RunHistoryRecord {
   runId: string;          // 运行唯一ID (使用uuid生成)
   startTime: string;      // 工作流开始时间
   endTime: string;        // 工作流结束时间
@@ -215,6 +215,10 @@ export class Workflow {
   }
 
   parseDepends(steps: Step[]) {
+    const idsSet = new Set<string>()
+    for (const step of steps) {
+      idsSet.add(step.id)
+    }
     for (const step of steps) {
       // 检查 each 和 if 不能同时使用
       if (step.each && step.type === 'if') {
@@ -227,8 +231,31 @@ export class Workflow {
       if (step.each) {
         deps.push(step.each.replace("$ref.", ''))
       }
+      this.checkDepsValid(deps, idsSet, step.id)
       this.deps[step.id] = deps
     }
+  }
+
+  checkDepsValid(deps: (string | string[])[], idsSet: Set<string>, stepId: string) {
+    deps.forEach(dep => {
+      const ensureDep = (depItem: string) => {
+        const root = depItem.split('.')[0]
+        if (['$item', '$index'].includes(root)) {
+          return
+        }
+        if (!idsSet.has(root)) {
+          throw new Error(`Step ${stepId} depends on non-existent step: ${depItem}`)
+        }
+      }
+
+      if (typeof dep === 'string') {
+        ensureDep(dep)
+      } else {
+        dep.forEach(d => {
+          ensureDep(d)
+        })
+      }
+    })
   }
 
   async run(options?: RunOptions, stepsNotRun: Step[] = [...this.options.steps], stepsRun: Step[] = []) {
