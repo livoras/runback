@@ -211,4 +211,67 @@ describe('Workflow History', () => {
     expect(mockActions.getUserInfo).toHaveBeenCalledTimes(2)
     expect(mockActions.fetchData).toHaveBeenCalledTimes(2)
   })
+
+  it('should handle multiple consecutive runs with history', async () => {
+    const workflow = new Workflow({
+      steps: [
+        { id: 'counter', action: 'incrementCounter' },
+        { 
+          id: 'process', 
+          action: 'processData',
+          depends: ['counter']
+        }
+      ]
+    })
+
+    // Initialize mock actions
+    const mockIncrementCounter = jest.fn()
+    const mockProcessData = jest.fn()
+    
+    const history: any[] = []
+    const runCount = 10 // Run the workflow 10 times
+    
+    for (let i = 0; i < runCount; i++) {
+      // Setup mocks for this run
+      const counterValue = i + 1
+      const processedValue = `processed_${counterValue}`
+      
+      mockIncrementCounter.mockResolvedValueOnce(counterValue)
+      mockProcessData.mockResolvedValueOnce(processedValue)
+      
+      // Run the workflow
+      const result = await workflow.run({
+        actions: {
+          incrementCounter: mockIncrementCounter,
+          processData: mockProcessData
+        },
+        history,
+        entry: 'counter'
+      })
+      
+      // Verify the result is the same array as history
+      expect(result).toBe(history)
+      expect(history).toHaveLength(i + 1)
+      
+      // Verify the latest history entry
+      const latest = history[history.length - 1]
+      expect(latest.counter).toBe(counterValue)
+      expect(latest.process).toBe(processedValue)
+      
+      // Verify all previous history entries are unchanged
+      for (let j = 0; j < i; j++) {
+        expect(history[j].counter).toBe(j + 1)
+        expect(history[j].process).toBe(`processed_${j + 1}`)
+      }
+    }
+    
+    // Verify mocks were called the correct number of times
+    expect(mockIncrementCounter).toHaveBeenCalledTimes(runCount)
+    expect(mockProcessData).toHaveBeenCalledTimes(runCount)
+    
+    // Verify final history state
+    expect(history).toHaveLength(runCount)
+    expect(history[runCount - 1].counter).toBe(runCount)
+    expect(history[runCount - 1].process).toBe(`processed_${runCount}`)
+  })
 })
