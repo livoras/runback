@@ -215,9 +215,14 @@ export class Workflow {
 
   parseDepends(steps: Step[]) {
     for (const step of steps) {
+      // 检查 each 和 if 不能同时使用
+      if (step.each && step.type === 'if') {
+        throw new Error(`Step ${step.id} cannot use 'each' and 'if' simultaneously`)
+      }
+      
       const depends = step.depends ?? []
       const optionsDeps = collectFromRefString(step.options || {})
-      const deps = [...depends, ...Object.values(optionsDeps)] as (string | string[])[]
+      const deps = [...depends, ...Object.values(optionsDeps)] as (string | string[])[] 
       if (step.each) {
         deps.push(step.each.replace("$ref.", ''))
       }

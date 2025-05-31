@@ -176,9 +176,26 @@ if (require.main === module) {
 // wf3.run({ entry: "getUserListId", actions, logLevel: LogLevel.ERROR })
 
 
-// console.log('\n=== Test Workflow 4 (Workflow with Error, Log Level: WARN) ===\n')
-// // Test workflow 4 - Deliberately introducing an error, using WARN log level
-// const wf4 = new Workflow({
+console.log('\n=== Test Workflow 4 (Each and If Conflict Test) ===\n')
+// Test workflow 4 - Testing that each and if cannot be used simultaneously
+try {
+  const wf4 = new Workflow({
+    steps: [
+      { id: "getUserListId", action: "getUserList" },
+      // 故意同时使用 each 和 if，这应该会抛出错误
+      { id: "invalidStep", action: "checkUserName", type: "if", each: "$ref.getUserListId.list", options: { name: "$ref.$item.name" } },
+    ]
+  }, LogLevel.INFO)
+  
+  console.log('This should not be reached if validation works correctly')
+} catch (error: any) {
+  console.log('\x1b[32mCaught expected error:\x1b[0m', error.message)
+}
+
+
+// console.log('\n=== Test Workflow 5 (Workflow with Error, Log Level: WARN) ===\n')
+// // Test workflow 5 - Deliberately introducing an error, using WARN log level
+// const wf5 = new Workflow({
 //   steps: [
 //     { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
 //     // Deliberately using a non-existent action
@@ -187,7 +204,7 @@ if (require.main === module) {
 // }, LogLevel.WARN)
 
 // try {
-//   wf4.run({ entry: "getUserInfoId", actions })
+//   wf5.run({ entry: "getUserInfoId", actions })
 // } catch (error: any) {
 //   console.log('Caught workflow error:', error.message)
 // }

@@ -221,17 +221,35 @@ describe('Workflow', () => {
       expect(mock).not.toHaveBeenCalled()
     })
 
-    it('each + if 分支', async () => {
+    it('each 遍历', async () => {
       const arr = [{v:true},{v:false}]
       const mock = jest.fn(({item}) => !!item.v)
       const wf = new Workflow({
         steps: [
           { id: 'arr', action: 'getArr' },
-          { id: 'judge', action: 'mock', options: { item: '$ref.$item' }, each: '$ref.arr', type: 'if' }
+          { id: 'judge', action: 'mock', options: { item: '$ref.$item' }, each: '$ref.arr' }
         ]
       })
       await wf.run({ actions: { getArr: () => arr, mock }, entry: 'arr' })
       expect(mock).toHaveBeenCalledTimes(2)
+    })
+    
+    it('if 条件分支', async () => {
+      const value = true
+      const mock = jest.fn(() => value)
+      const mockTrue = jest.fn()
+      const mockFalse = jest.fn()
+      const wf = new Workflow({
+        steps: [
+          { id: 'condition', action: 'mock', type: 'if' },
+          { id: 'trueStep', action: 'mockTrue', depends: ['condition.true'] },
+          { id: 'falseStep', action: 'mockFalse', depends: ['condition.false'] }
+        ]
+      })
+      await wf.run({ actions: { mock, mockTrue, mockFalse }, entry: 'condition' })
+      expect(mock).toHaveBeenCalledTimes(1)
+      expect(mockTrue).toHaveBeenCalledTimes(1)
+      expect(mockFalse).not.toHaveBeenCalled()
     })
 
     it('each 的 options 里多层 $ref', async () => {
@@ -296,6 +314,27 @@ describe('Workflow', () => {
       expect(mockActions.log).toHaveBeenCalledWith({
         message: ["delayed 100ms", "delayed 100ms", "delayed 100ms"]
       })
+    })
+  })
+  
+  describe('each 和 if 不能同时使用', () => {
+    it('应该在创建工作流时抛出错误，如果一个步骤同时使用了 each 和 if', () => {
+      const arr = [{name: 'jerry'}, {name: 'tom'}]
+      const mockAction = jest.fn()
+      
+      // 使用一个函数包装 Workflow 创建，以便捕获预期的错误
+      const createInvalidWorkflow = () => {
+        return new Workflow({
+          steps: [
+            { id: 'arr', action: 'getArr' },
+            // 同时使用 each 和 if，这应该会导致错误
+            { id: 'invalidStep', action: 'mockAction', type: 'if', each: '$ref.arr', options: { name: '$ref.$item.name' } }
+          ]
+        })
+      }
+      
+      // 验证创建工作流时会抛出错误
+      expect(createInvalidWorkflow).toThrow('Step invalidStep cannot use \'each\' and \'if\' simultaneously')
     })
   })
 }) 
