@@ -398,4 +398,62 @@ describe('Workflow History', () => {
     expect(record.error?.stack).toBeDefined();
   });
 
+  it('should record context correctly for failed run', async () => {
+    // 准备测试数据和上下文
+    interface TestContext {
+      key: string;
+      nested: { prop: string };
+      additionalData?: string;
+    }
+    
+    // 创建一个模拟的 contextStep 操作，它会在上下文中设置数据然后抛出错误
+    const contextStepMock = jest.fn().mockImplementation((options) => {
+      // 返回一个对象，会被设置到上下文中
+      const result = { 
+        ...options,
+        additionalData: 'added before error' 
+      };
+      // 模拟操作失败
+      throw new Error('上下文错误');
+      return result; // 这行代码实际上不会执行，因为前面抛出了错误
+    });
+    
+    const testContext: TestContext = { key: 'value', nested: { prop: 'test' } };
+    
+    const workflow = new Workflow({
+      steps: [
+        // 第一个步骤设置上下文数据
+        { id: 'setupContext', action: 'setupContext' },
+        // 第二个步骤将失败
+        { 
+          id: 'failStep', 
+          action: 'failStep',
+          depends: ['setupContext']
+        }
+      ]
+    });
+    
+    // 运行工作流
+    const history = await workflow.run({ 
+      actions: {
+        setupContext: jest.fn().mockResolvedValue(testContext),
+        failStep: contextStepMock
+      }, 
+      history: [],
+      entry: 'setupContext'
+    });
+    
+    // 验证结果
+    const record = history[history.length - 1];
+    
+    // 验证状态和错误信息
+    expect(record.status).toBe('failed');
+    expect(record.error?.message).toBe('上下文错误');
+    expect(record.error?.stack).toBeDefined();
+    
+    // 验证上下文被正确保存
+    expect(record.context).toBeDefined();
+    expect(record.context.setupContext).toEqual(testContext);
+  });
+
 })

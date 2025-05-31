@@ -84,7 +84,7 @@ const markRecordSuccess = (record: RunHistoryRecord, ctx: any) => {
   record.context = ctx
 }
 
-const markRecordFailed = (record: RunHistoryRecord, error: Error) => {
+const markRecordFailed = (record: RunHistoryRecord, ctx: any, error: Error) => {
   record.endTime = new Date().toISOString()
   record.duration = new Date(record.endTime).getTime() - new Date(record.startTime).getTime()
   record.status = "failed"
@@ -92,6 +92,7 @@ const markRecordFailed = (record: RunHistoryRecord, error: Error) => {
     message: error.message,
     stack: error.stack
   }
+  record.context = ctx
 }
 
 const createRunningStepRecord = (step: Step, ctx: any, onlyRun: boolean = false): StepExecutionRecord => {
@@ -266,10 +267,11 @@ export class Workflow {
     
     const record = createRunningRecord()
     const history = options?.history || []
+    let ctx: any = {}
     try {
       // 初始化执行记录数组
       let setKeys: Set<string> = new Set()
-      let ctx = this.createContext(setKeys)
+      ctx = this.createContext(setKeys)
       
       // 如果指定了 onlyRuns，从历史记录恢复上下文
       if (options?.onlyRuns?.length || options?.resume) {
@@ -306,7 +308,7 @@ export class Workflow {
       }
       markRecordSuccess(record, ctx)
     } catch (error) {
-      markRecordFailed(record, error as Error)
+      markRecordFailed(record, ctx, error as Error)
     }
     
     // 将成功记录添加到历史记录中
@@ -384,6 +386,12 @@ export class Workflow {
     
     const each = step.each!.replace("$ref.", '')
     const list = getByPath(ctx, each)
+
+    const inputs: any = []
+    stepRecord.inputs = inputs
+    
+    const results: any[] = []
+    stepRecord.outputs = results
     
     if (!Array.isArray(list)) {
       const errorMsg = `Data source ${each} for iteration step ${step.id} is not an array`
@@ -392,12 +400,6 @@ export class Workflow {
     }
     
     this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list.length })
-
-    const inputs: any = []
-    stepRecord.inputs = inputs
-    
-    const results: any[] = []
-    stepRecord.outputs = results
 
     await Promise.all(list.map(async (item: any, index: number) => {
       this.logger.debug(`Executing item ${index} of iteration step ${step.id}`)
