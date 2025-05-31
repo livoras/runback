@@ -274,4 +274,101 @@ describe('Workflow History', () => {
     expect(history[runCount - 1].context.counter).toBe(runCount)
     expect(history[runCount - 1].context.process).toBe(`processed_${runCount}`)
   })
+
+  it('should correctly record execution time in history', async () => {
+    // 创建一个简单的 workflow，包含一个异步操作以产生可测量的执行时间
+    const workflow = new Workflow({
+      steps: [
+        { 
+          id: 'delay', 
+          action: 'delayAction',
+        },
+        { 
+          id: 'process', 
+          action: 'processAction',
+          depends: ['delay']
+        }
+      ]
+    })
+
+    // 模拟一个延迟操作，确保有可测量的执行时间
+    const mockDelay = jest.fn().mockImplementation(() => 
+      new Promise(resolve => setTimeout(resolve, 100))
+    )
+    const mockProcess = jest.fn().mockResolvedValue('processed')
+
+    const history: any[] = []
+    
+    // 第一次运行
+    const startTime1 = Date.now()
+    await workflow.run({
+      actions: {
+        delayAction: mockDelay,
+        processAction: mockProcess
+      },
+      history,
+      entry: 'delay'
+    })
+    const endTime1 = Date.now()
+
+    // 验证第一次运行的时间记录
+    expect(history).toHaveLength(1)
+    const record1 = history[0]
+    
+    // 验证时间戳格式
+    expect(record1.startTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    expect(record1.endTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    
+    // 验证开始时间在预期范围内
+    const recordStart1 = new Date(record1.startTime).getTime()
+    expect(recordStart1).toBeGreaterThanOrEqual(startTime1 - 1000) // 允许1秒误差
+    expect(recordStart1).toBeLessThanOrEqual(startTime1 + 1000)
+    
+    // 验证结束时间在预期范围内
+    const recordEnd1 = new Date(record1.endTime).getTime()
+    expect(recordEnd1).toBeGreaterThanOrEqual(endTime1 - 1000)
+    expect(recordEnd1).toBeLessThanOrEqual(endTime1 + 1000)
+    
+    // 验证持续时间
+    expect(record1.duration).toBeGreaterThanOrEqual(100) // 至少包含延迟时间
+    expect(record1.duration).toBe(recordEnd1 - recordStart1)
+
+    // 第二次运行
+    const startTime2 = Date.now()
+    await workflow.run({
+      actions: {
+        delayAction: mockDelay,
+        processAction: mockProcess
+      },
+      history,
+      entry: 'delay'
+    })
+    const endTime2 = Date.now()
+
+    // 验证第二次运行的时间记录
+    expect(history).toHaveLength(2)
+    const record2 = history[1]
+    
+    // 验证时间戳格式
+    expect(record2.startTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    expect(record2.endTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    
+    // 验证开始时间在预期范围内
+    const recordStart2 = new Date(record2.startTime).getTime()
+    expect(recordStart2).toBeGreaterThanOrEqual(startTime2 - 1000)
+    expect(recordStart2).toBeLessThanOrEqual(startTime2 + 1000)
+    
+    // 验证结束时间在预期范围内
+    const recordEnd2 = new Date(record2.endTime).getTime()
+    expect(recordEnd2).toBeGreaterThanOrEqual(endTime2 - 1000)
+    expect(recordEnd2).toBeLessThanOrEqual(endTime2 + 1000)
+    
+    // 验证持续时间
+    expect(record2.duration).toBeGreaterThanOrEqual(100)
+    expect(record2.duration).toBe(recordEnd2 - recordStart2)
+
+    // 验证两次运行的时间顺序
+    expect(new Date(record1.startTime).getTime()).toBeLessThan(new Date(record2.startTime).getTime())
+    expect(new Date(record1.endTime).getTime()).toBeLessThan(new Date(record2.startTime).getTime())
+  })
 })
