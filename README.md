@@ -207,40 +207,58 @@ const history = await workflow.run({ actions });
 console.log('执行历史:', history);
 ```
 
-#### 2. 断点续跑
+#### 2. 断点续跑 (Resume)
+
+Runback 提供两种断点续跑方式：
+
+1. **自动从失败点继续**：
+   ```typescript
+   // 第一次运行（假设在 step2 失败）
+   const history1 = await workflow.run({ actions });
+   
+   // 自动从失败点继续执行
+   const history2 = await workflow.run({ 
+     actions,
+     history: history1,  // 传入历史记录
+     resume: true        // 自动从失败点继续
+   });
+   ```
+
+2. **手动指定入口步骤**：
+   ```typescript
+   // 从指定步骤开始执行
+   const history2 = await workflow.run({ 
+     actions,
+     history: history1,
+     entry: 'step3'  // 指定从哪个步骤开始执行
+   });
+   ```
+
+#### 3. 选择性重试 (onlyRuns)
 
 ```typescript
-// 第一次运行
-const history1 = await workflow.run({ actions });
-
-// 基于上次的历史记录继续运行
-const history2 = await workflow.run({ 
-  actions,
-  history: history1,  // 传入历史记录
-  entry: 'failedStep' // 从指定步骤开始
-});
-```
-
-#### 3. 选择性重试
-
-```typescript
-// 第一次运行
-const history1 = await workflow.run({ actions });
-
-// 只重试特定的步骤（即使它们的依赖不满足）
+// 只重试特定的步骤（跳过依赖检查）
 const history2 = await workflow.run({
   actions,
-  history: history1,  // 传入历史记录以获取上下文
+  history: history1,  
   onlyRuns: ['step2', 'step3']  // 只运行指定的步骤
 });
 ```
 
 ### 历史记录的特点
 
-1. **完整追踪**：记录每个步骤的输入、输出、执行时间和状态
-2. **上下文快照**：保存执行时的完整上下文，便于调试和重试
-3. **断点续跑**：可以从任意步骤继续执行工作流
-4. **选择性重试**：可以只重试特定的步骤，跳过依赖检查
+1. **断点续跑**：
+   - 使用 `resume: true` 自动从最后一个失败的步骤继续执行
+   - 或使用 `entry` 指定从任意步骤开始执行
+   - 自动恢复执行时的完整上下文
+
+2. **选择性重试**：
+   - 使用 `onlyRuns` 重试特定步骤
+   - 自动跳过依赖检查
+   - 保留原始执行上下文
+
+3. **完整追踪**：记录每个步骤的输入、输出、执行时间和状态
+4. **上下文快照**：保存执行时的完整上下文，便于调试和重试
 5. **错误恢复**：当工作流失败时，可以从失败点继续执行
 
 ### 最佳实践
