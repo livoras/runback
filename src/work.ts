@@ -19,7 +19,7 @@ export type WorkflowOptions = {
 export type RunOptions = {
   actions?: Record<string, Function>,
   history?: any[], // 执行记录数组
-  always?: boolean,
+  useHisotry?: boolean,
   onlyRuns?: string[],
   entry?: string,
   logLevel?: LogLevel,
