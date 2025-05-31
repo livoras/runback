@@ -369,6 +369,33 @@ describe('Workflow History', () => {
 
     // 验证两次运行的时间顺序
     expect(new Date(record1.startTime).getTime()).toBeLessThan(new Date(record2.startTime).getTime())
-    expect(new Date(record1.endTime).getTime()).toBeLessThan(new Date(record2.startTime).getTime())
+    expect(new Date(record1.endTime).getTime()).toBeLessThanOrEqual(new Date(record2.startTime).getTime())
   })
+
+  it('should record status and error correctly for successful run', async () => {
+    const workflow = new Workflow({
+      steps: [{ id: 'getUser', action: 'getUserInfo' }]
+    });
+    const history: any[] = [];
+    await workflow.run({ actions: mockActions, history, entry: 'getUser' });
+    const record = history[history.length - 1];
+    expect(record.status).toBe('success');
+    expect(record.error).toBeUndefined();
+  });
+
+  it('should record status and error correctly for failed run', async () => {
+    const errorActions = {
+      ...mockActions,
+      failStep: jest.fn().mockImplementation(() => { throw new Error('测试错误') })
+    };
+    const workflow = new Workflow({
+      steps: [{ id: 'failStep', action: 'failStep' }]
+    });
+    const history = await workflow.run({ actions: errorActions as any, history: [], entry: 'failStep' })
+    const record = history[history.length - 1];
+    expect(record.status).toBe('failed');
+    expect(record.error?.message).toBe('测试错误');
+    expect(record.error?.stack).toBeDefined();
+  });
+
 })

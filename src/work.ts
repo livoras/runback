@@ -86,7 +86,10 @@ const markRecordFailed = (record: RunHistoryRecord, error: Error) => {
   record.endTime = new Date().toISOString()
   record.duration = new Date(record.endTime).getTime() - new Date(record.startTime).getTime()
   record.status = "failed"
-  record.error = error
+  record.error = {
+    message: error.message,
+    stack: error.stack
+  }
 }
 
 /**
@@ -183,8 +186,7 @@ export class Workflow {
     const record = createRunningRecord()
     const history = options?.history || []
     try {
-    // 初始化执行记录数组
-      
+      // 初始化执行记录数组
       let setKeys: Set<string> = new Set()
       let ctx = this.createContext(setKeys)
       
@@ -207,10 +209,9 @@ export class Workflow {
       markRecordSuccess(record, ctx)
     } catch (error) {
       markRecordFailed(record, error as Error)
-      throw error
     }
     
-    // 将最终的上下文状态添加到执行记录中
+    // 将成功记录添加到历史记录中
     history.push(clone(record))
     
     this.logger.info('Workflow execution completed')
