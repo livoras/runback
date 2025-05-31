@@ -15,7 +15,9 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.5.0",
-    "typescript": "^5.3.3"
+    "open": "^10.1.2",
+    "typescript": "^5.3.3",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

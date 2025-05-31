@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Workflow Visualization</title>
+  <meta charset="utf-8">
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style type="text/css">
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+    #visualization {
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ddd;
+    }
+    .controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .legend {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      z-index: 100;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .legend-color {
+      width: 20px;
+      height: 10px;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button id="zoomIn">+</button>
+    <button id="zoomOut">-</button>
+    <button id="fit">Fit</button>
+  </div>
+  <div class="legend">
+    <h3 style="margin-top: 0;">Legend</h3>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #99FF99; border: 1px solid #33CC33;"></div>
+      <span>Regular Step</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #99CCFF; border: 1px solid #3399FF;"></div>
+      <span>Conditional (if) Step</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #FFCC00; border: 1px solid #FF9900;"></div>
+      <span>Trigger Step</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #FF9900;"></div>
+      <span>Explicit Dependency</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #9900FF;"></div>
+      <span>Each Dependency</span>
+    </div>
+  </div>
+  <div id="visualization"></div>
+  <script type="text/javascript">
+    // 可视化数据
+    const nodes = new vis.DataSet([{"id":"getUserInfoId","label":"getUserInfoId\n(getUserInfo)","title":"<div style=\"padding: 10px;\">\n    <strong>ID:</strong> getUserInfoId<br>\n    <strong>Action:</strong> getUserInfo<br><strong>Options:</strong> <pre>{\n  \"id\": 123\n}</pre></div>","shape":"box","color":{"background":"#99FF99","border":"#33CC33"}},{"id":"checkUserName","label":"checkUserName\n(checkUserName)","title":"<div style=\"padding: 10px;\">\n    <strong>ID:</strong> checkUserName<br>\n    <strong>Action:</strong> checkUserName<br><strong>Type:</strong> if<br><strong>Options:</strong> <pre>{\n  \"name\": \"$ref.getUserInfoId.name\"\n}</pre></div>","shape":"triangle","color":{"background":"#99CCFF","border":"#3399FF"}},{"id":"sayHiId","label":"sayHiId\n(sayHi)","title":"<div style=\"padding: 10px;\">\n    <strong>ID:</strong> sayHiId<br>\n    <strong>Action:</strong> sayHi<br><strong>Depends:</strong> checkUserName.true<br><strong>Options:</strong> <pre>{\n  \"input\": {\n    \"name\": \"$ref.getUserInfoId.name\"\n  }\n}</pre></div>","shape":"box","color":{"background":"#99FF99","border":"#33CC33"}},{"id":"logId","label":"logId\n(log)","title":"<div style=\"padding: 10px;\">\n    <strong>ID:</strong> logId<br>\n    <strong>Action:</strong> log<br><strong>Options:</strong> <pre>{\n  \"message\": \"$ref.sayHiId.result\"\n}</pre></div>","shape":"box","color":{"background":"#99FF99","border":"#33CC33"}},{"id":"logId2","label":"logId2\n(log)","title":"<div style=\"padding: 10px;\">\n    <strong>ID:</strong> logId2<br>\n    <strong>Action:</strong> log<br><strong>Options:</strong> <pre>{\n  \"message\": \"$ref.sayHiId.result\"\n}</pre></div>","shape":"box","color":{"background":"#99FF99","border":"#33CC33"}},{"id":"logId3","label":"logId3\n(log)","title":"<div style=\"padding: 10px;\">\n    <strong>ID:</strong> logId3<br>\n    <strong>Action:</strong> log<br><strong>Options:</strong> <pre>{\n  \"message\": [\n    \"$ref.logId\",\n    \"$ref.logId2\"\n  ]\n}</pre></div>","shape":"box","color":{"background":"#99FF99","border":"#33CC33"}}]);
+    const edges = new vis.DataSet([{"from":"getUserInfoId","to":"checkUserName","label":"getUserInfoId.name","arrows":"to","font":{"align":"horizontal"}},{"from":"checkUserName","to":"sayHiId","label":"checkUserName.true","arrows":"to","font":{"align":"horizontal"}},{"from":"getUserInfoId","to":"sayHiId","label":"getUserInfoId.name","arrows":"to","font":{"align":"horizontal"}},{"from":"checkUserName","to":"sayHiId","label":"checkUserName.true","arrows":"to","color":{"color":"#FF9900"},"font":{"align":"horizontal"}},{"from":"sayHiId","to":"logId","label":"sayHiId.result","arrows":"to","font":{"align":"horizontal"}},{"from":"sayHiId","to":"logId2","label":"sayHiId.result","arrows":"to","font":{"align":"horizontal"}},{"from":"logId","to":"logId3","label":"logId","arrows":"to","font":{"align":"horizontal"}},{"from":"logId2","to":"logId3","label":"logId2","arrows":"to","font":{"align":"horizontal"}}]);
+
+    // 创建网络
+    const container = document.getElementById('visualization');
+    const data = {
+      nodes: nodes,
+      edges: edges
+    };
+    const options = {
+      layout: {
+        hierarchical: {
+          direction: 'LR',
+          sortMethod: 'directed',
+          levelSeparation: 150,
+          nodeSpacing: 150
+        }
+      },
+      physics: {
+        hierarchicalRepulsion: {
+          centralGravity: 0.0,
+          springLength: 150,
+          springConstant: 0.01,
+          nodeDistance: 120,
+          damping: 0.09
+        },
+        solver: 'hierarchicalRepulsion'
+      },
+      nodes: {
+        font: {
+          size: 14,
+          face: 'arial',
+          multi: 'html'
+        },
+        margin: 10,
+        shape: 'box'
+      },
+      edges: {
+        font: {
+          size: 12,
+          face: 'arial'
+        },
+        color: {
+          color: '#2B7CE9',
+          highlight: '#000000',
+          hover: '#2B7CE9'
+        },
+        smooth: {
+          type: 'curvedCW',
+          roundness: 0.2
+        }
+      },
+      interaction: {
+        hover: true,
+        tooltipDelay: 300,
+        zoomView: true
+      }
+    };
+    const network = new vis.Network(container, data, options);
+
+    // 添加控件功能
+    document.getElementById('zoomIn').addEventListener('click', function() {
+      network.zoomIn(0.2);
+    });
+    document.getElementById('zoomOut').addEventListener('click', function() {
+      network.zoomOut(0.2);
+    });
+    document.getElementById('fit').addEventListener('click', function() {
+      network.fit();
+    });
+  </script>
+</body>
+</html>
