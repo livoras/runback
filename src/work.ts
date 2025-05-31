@@ -25,6 +25,37 @@ export type RunOptions = {
   logLevel?: LogLevel,
 }
 
+// 步骤执行记录
+interface StepExecutionRecord {
+  id: string;             // 步骤唯一ID
+  action: string;         // 执行的操作名
+  startTime: string;      // ISO格式开始时间
+  endTime: string;        // ISO格式结束时间
+  duration: number;       // 执行时长(毫秒)
+  status: 'success' | 'failed' | 'skipped'; // 执行状态
+  options?: Record<string, any>; // 步骤配置选项（来自step.options）
+  inputs: any;            // 输入参数（来自runOptions）
+  outputs?: any;          // 输出结果
+  error?: {               // 错误信息(如果执行失败)
+    message: string;
+    stack?: string;
+  };
+  context: any;           // 执行时的上下文
+}
+
+// 工作流运行记录
+interface RunHistoryRecord {
+  runId: string;          // 运行唯一ID (使用uuid生成)
+  startTime: string;      // 工作流开始时间
+  endTime: string;        // 工作流结束时间
+  duration: number;       // 总执行时长
+  status: 'completed' | 'failed' | 'partial'; // 最终状态
+  steps: { [stepId: string]: StepExecutionRecord }; // 步骤记录映射
+  context: any;           // 最终上下文快照
+}
+
+type WorkflowHistory = RunHistoryRecord[];
+
 /**
  * 深拷贝对象
  * @param obj 要拷贝的对象
@@ -40,8 +71,8 @@ const clone = (obj: any) => {
  * @returns 前缀数组
  */
 const getPrefixes = (path: string) => {
-  const parts = path.split('.');
-  return parts.map((_, i) => parts.slice(0, i + 1).join('.'));
+  const parts = path.split('.')
+  return parts.map((_, i) => parts.slice(0, i + 1).join('.'))
 }
 
 /**
@@ -84,7 +115,7 @@ const isAllDepsMet = (deps: string[], setKeys: Set<string>, cache: Map<string, b
  * @returns 路径对应的值
  */
 const getByPath = (o: any, p: string) => {
-  return p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
+  return p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o)
 }
 
 export class Workflow {
