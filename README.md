@@ -152,6 +152,104 @@ const workflow = new Workflow({
 
 迭代步骤会并行处理数组中的每个元素，并将结果合并为一个数组。
 
+## 历史记录功能
+
+Runback 提供了完善的历史记录功能，可以追踪工作流的完整执行过程，并支持断点续跑和选择性重试。
+
+### 执行记录结构
+
+每次工作流执行都会生成一个 `RunHistoryRecord` 记录，包含以下信息：
+
+```typescript
+interface RunHistoryRecord {
+  runId: string;          // 运行唯一ID (使用uuid生成)
+  startTime: string;      // 工作流开始时间 (ISO格式)
+  endTime: string;        // 工作流结束时间 (ISO格式)
+  duration: number;       // 总执行时长(毫秒)
+  status: 'running' | 'failed' | 'success' | 'aborted' | 'pending';
+  steps: {                // 步骤执行记录映射
+    [stepId: string]: StepExecutionRecord;
+  };
+  context: any;           // 最终上下文快照
+  error?: {               // 错误信息(如果执行失败)
+    message: string;
+    stack?: string;
+  };
+}
+
+interface StepExecutionRecord {
+  step: Step;            // 步骤定义
+  startTime: string;      // 开始时间 (ISO格式)
+  endTime: string;        // 结束时间 (ISO格式)
+  duration: number;       // 执行时长(毫秒)
+  status: RunStatus;      // 执行状态
+  options?: any;          // 步骤配置
+  inputs: any;            // 输入参数
+  outputs?: any;          // 输出结果
+  onlyRun: boolean;       // 是否在 onlyRuns 模式下运行
+  error?: {               // 错误信息
+    message: string;
+    stack?: string;
+  };
+  context: any;          // 执行时的上下文快照
+}
+```
+
+### 使用历史记录
+
+#### 1. 获取执行历史
+
+```typescript
+// 运行工作流并获取历史记录
+const history = await workflow.run({ actions });
+
+// 历史记录是一个数组，包含所有运行的记录
+console.log('执行历史:', history);
+```
+
+#### 2. 断点续跑
+
+```typescript
+// 第一次运行
+const history1 = await workflow.run({ actions });
+
+// 基于上次的历史记录继续运行
+const history2 = await workflow.run({ 
+  actions,
+  history: history1,  // 传入历史记录
+  entry: 'failedStep' // 从指定步骤开始
+});
+```
+
+#### 3. 选择性重试
+
+```typescript
+// 第一次运行
+const history1 = await workflow.run({ actions });
+
+// 只重试特定的步骤（即使它们的依赖不满足）
+const history2 = await workflow.run({
+  actions,
+  history: history1,  // 传入历史记录以获取上下文
+  onlyRuns: ['step2', 'step3']  // 只运行指定的步骤
+});
+```
+
+### 历史记录的特点
+
+1. **完整追踪**：记录每个步骤的输入、输出、执行时间和状态
+2. **上下文快照**：保存执行时的完整上下文，便于调试和重试
+3. **断点续跑**：可以从任意步骤继续执行工作流
+4. **选择性重试**：可以只重试特定的步骤，跳过依赖检查
+5. **错误恢复**：当工作流失败时，可以从失败点继续执行
+
+### 最佳实践
+
+1. **持久化存储**：将历史记录保存到数据库或文件系统，以便后续分析和重试
+2. **定期清理**：设置历史记录的保留策略，避免占用过多存储空间
+3. **监控告警**：监控工作流的执行状态，对失败的工作流设置告警
+4. **版本控制**：对工作流定义进行版本控制，确保历史记录与工作流定义的一致性
+
 ## 日志控制
 
 Runback 提供了灵活的日志控制机制：
@@ -187,6 +285,67 @@ try {
 ```
 
 步骤执行失败时，工作流会立即终止并抛出异常。
+
+## 高级特性
+
+### 选择性执行 (onlyRuns)
+
+使用 `onlyRuns` 选项可以只运行指定的步骤，同时保留完整的上下文：
+
+```typescript
+// 第一次完整运行
+const history = await workflow.run({ actions });
+
+// 只运行特定步骤（使用历史上下文）
+await workflow.run({ 
+  actions,
+  history,
+  onlyRuns: ["step2", "step3"]  // 只运行这些步骤
+});
+```
+
+特点：
+- 自动从历史记录中恢复上下文
+- 跳过依赖检查，直接运行指定步骤
+- 适合调试和部分重试场景
+
+### 执行记录
+
+工作流执行后返回详细的执行记录：
+
+```typescript
+interface StepExecutionRecord {
+  step: Step;                    // 步骤定义
+  startTime: string;             // 开始时间
+  endTime: string;               // 结束时间
+  duration: number;              // 执行时长(毫秒)
+  status: 'pending' | 'running' | 'success' | 'failed';
+  options?: Record<string, any>; // 步骤配置
+  inputs: any;                   // 输入参数
+  outputs?: any;                 // 输出结果
+  onlyRun: boolean;              // 是否在 onlyRuns 模式下运行
+  error?: {                      // 错误信息
+    message: string;
+    stack?: string;
+  };
+  context: any;                  // 执行时的上下文快照
+}
+```
+
+## 最佳实践
+
+### 性能优化
+
+1. **并行执行**：无依赖关系的步骤会自动并行执行
+2. **依赖缓存**：使用高效的依赖解析算法
+3. **最小化上下文更新**：使用代理模式监听数据变化
+4. **选择性执行**：使用 `onlyRuns` 进行部分重试
+
+### 调试技巧
+
+1. 设置 `logLevel: LogLevel.DEBUG` 获取详细日志
+2. 使用 `onlyRuns` 进行局部调试
+3. 检查执行记录中的上下文状态
 
 ## 项目结构
 
