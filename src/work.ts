@@ -18,7 +18,7 @@ export type WorkflowOptions = {
 
 export type RunOptions = {
   actions?: Record<string, Function>,
-  history?: Record<string, any>,
+  history?: any[], // 执行记录数组
   always?: boolean,
   onlyRuns?: string[],
   entry?: string,
@@ -116,6 +116,9 @@ export class Workflow {
       this.logger.setLevel(options.logLevel)
     }
     
+    // 初始化执行记录数组
+    const history = options?.history || []
+    
     let setKeys: Set<string> = new Set()
     let ctx = this.createContext(setKeys)
     
@@ -136,8 +139,11 @@ export class Workflow {
       ))
     }
     
+    // 将最终的上下文状态添加到执行记录中
+    history.push(clone(ctx))
+    
     this.logger.info('Workflow execution completed')
-    return ctx
+    return history
   }
   
   private createContext(setKeys: Set<string>) {
