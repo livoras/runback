@@ -61,17 +61,37 @@ const getPrefixes = (path: string) => {
   return parts.map((_, i) => parts.slice(0, i + 1).join('.'));
 }
 
-const isAllDepsMet = (deps: string[], setKeys: Set<string>) => {
-  // console.log("check met", deps, setKeys)
-  return deps.every(dep => {
+/**
+ * 检查所有依赖是否已满足
+ * @param deps 依赖列表
+ * @param setKeys 已设置的键集合
+ * @param cache 依赖检查缓存
+ * @returns 是否所有依赖都已满足
+ */
+const isAllDepsMet = (deps: string[], setKeys: Set<string>, cache: Map<string, boolean> = new Map()) => {
+  // 如果没有依赖，直接返回 true
+  if (deps.length === 0) return true
+  
+  // 使用缓存键（依赖数组+setKeys大小）来检查是否有缓存结果
+  const cacheKey = `${deps.join('|')}:${setKeys.size}`
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey)!
+  }
+  
+  const result = deps.every(dep => {
+    // 特殊依赖：$item 和 $index 总是被视为已满足
     if (dep.startsWith("$item") || dep.startsWith("$index")) {
       return true
     }
     
+    // 检查依赖的前缀路径是否已满足
     const prefixes = getPrefixes(dep)
-    // console.log('check dep~~~~~~~', dep, prefixes, prefixes.some(prefix => setKeys.has(prefix)), setKeys)
     return prefixes.some(prefix => setKeys.has(prefix))
   })
+  
+  // 缓存结果
+  cache.set(cacheKey, result)
+  return result
 }
 
 const getByPath = (o: any, p: string) => {
@@ -188,40 +208,34 @@ export class Workflow {
     return itemOptions
   }
 
+  /**
+   * 获取所有可运行的步骤
+   * @param runOptions 运行选项
+   * @param stepsNotRun 未运行的步骤列表
+   * @param ctx 上下文
+   * @param setKeys 已设置的键集合
+   * @returns 可运行的步骤列表
+   */
   getAllRunnableSteps(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>) {
+    // 创建依赖检查缓存，避免重复计算
+    const depsCache = new Map<string, boolean>()
+    
     return stepsNotRun.filter(step => {
+      // 入口步骤总是可运行的
       if (step.id === runOptions?.entry) return true
+      
       const deps = this.deps[step.id]
       if (deps.length === 0) {
-        console.warn(`step ${step.id} has no deps, but it is not entry`)
+        console.warn(`步骤 ${step.id} 没有依赖，但不是入口步骤`)
         return false
       }
-      return isAllDepsMet(deps, setKeys)
+      
+      // 使用缓存检查依赖
+      return isAllDepsMet(deps, setKeys, depsCache)
     })
   }
 
-  getNextStep(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>) {
-    for (let i = 0; i < stepsNotRun.length; i++) {
-      const step = stepsNotRun[i]
-      // console.log('\n--------------------------------')
-      // console.log("checking...", step.id)
-      // // console.log('context -->', ctx)
-      // console.log('deps -->', this.deps[step.id])
-      // console.log('setKeys -->', setKeys)
-      if (step.id === runOptions?.entry) {
-        return step
-      }
-      const deps = this.deps[step.id]
-      if (deps.length === 0) {
-        console.warn(`step ${step.id} has no deps, but it is not entry`)
-        continue
-      }
-      if (isAllDepsMet(deps, setKeys)) {
-        return step
-      }
-    }
-    return null
-  }
+  // getNextStep 方法已被 getAllRunnableSteps 替代，不再需要
 
   moveStepToRun(step: Step, stepsNotRun: Step[], stepsRun: Step[]) {
     // stepsNotRun = stepsNotRun.filter(s => s.id !== step.id)
