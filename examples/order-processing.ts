@@ -98,35 +98,19 @@ export const orderProcessingActions = {
   validateOrder: async ({ order }) => {
     console.log(`验证订单: ${order.id}`);
     const isValid = order && order.items && order.items.length > 0;
-    return { valid: isValid, reason: isValid ? null : '订单无效' };
+    return isValid;
   },
   
   // 检查商品库存
   checkInventory: async ({ items }: { items: Array<{ productId: string; quantity: number }> }) => {
     console.log(`检查库存: ${items.length} 个商品`);
-    const results: Array<{
-      productId: string;
-      requested: number;
-      available: number;
-      inStock: boolean;
-    }> = [];
     let allInStock = true;
-    
     for (const item of items) {
       const product = mockDatabase.products[item.productId];
       const inStock = product && product.stock >= item.quantity;
-      
-      results.push({
-        productId: item.productId,
-        requested: item.quantity,
-        available: product ? product.stock : 0,
-        inStock
-      });
-      
       if (!inStock) allInStock = false;
     }
-    
-    return { allInStock, results };
+    return allInStock;
   },
   
   // 计算订单金额
@@ -205,31 +189,25 @@ export const orderProcessingActions = {
   // 处理支付
   processPayment: async ({ method, amount, user }) => {
     console.log(`处理支付: ${method}, 金额: ${amount}`);
-    
-    // 检查用户是否支持该支付方式
     if (!user.paymentMethods.includes(method)) {
-      return { success: false, error: `用户不支持 ${method} 支付方式` };
+      return false;
     }
-    
-    // 调用支付网关
     const result = await mockPaymentGateways[method](amount);
-    return result;
+    return !!result.success;
   },
   
   // 备选支付处理
   fallbackPayment: async ({ amount, user }) => {
     console.log(`尝试备选支付方式`);
-    // 尝试用户的其他支付方式
     for (const method of user.paymentMethods) {
-      if (method !== 'creditcard') { // 跳过信用卡
+      if (method !== 'creditcard') {
         const result = await mockPaymentGateways[method](amount);
         if (result.success) {
-          return { ...result, method };
+          return true;
         }
       }
     }
-    
-    return { success: false, error: '所有支付方式都失败' };
+    return false;
   },
   
   // 创建物流订单
@@ -482,7 +460,7 @@ export const orderProcessingWorkflow = new Workflow({
       depends: ["updateInventory", "sendConfirmation"]
     }
   ]
-}, LogLevel.INFO); // 设置日志级别
+}, LogLevel.DEBUG); // 设置日志级别为 DEBUG
 
 // 执行工作流
 console.log("=== 开始处理订单 ===");
