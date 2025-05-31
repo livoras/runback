@@ -27,6 +27,7 @@ export type RunOptions = {
   entry?: string,
   logLevel?: LogLevel,
   resume?: boolean,
+  entryOptions?: any, // to cover the entry steps options
 }
 
 // 步骤执行记录
@@ -458,6 +459,13 @@ export class Workflow {
     const runnableSteps = stepsNotRun.filter(step => {
       // 入口步骤总是可运行的
       if (step.id === runOptions?.entry) {
+        if (runOptions.entryOptions) {
+          // Merge entryOptions with existing options, with entryOptions taking precedence
+          step.options = {
+            ...(step.options || {}),
+            ...runOptions.entryOptions
+          };
+        }
         this.logger.debug(`Step ${step.id} is entry step, can run`)
         return true
       }

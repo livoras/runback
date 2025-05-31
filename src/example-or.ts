@@ -1,5 +1,6 @@
 import { Workflow } from './workflow'
 import { LogLevel } from './logger'
+import { count } from 'console';
 
 // 测试用的操作函数
 const logGreen = (...args: any[]) => {
@@ -46,7 +47,7 @@ const logGreen = (...args: any[]) => {
     console.log('\n\n------------fuck------------------------------------------------')
     const workflow = new Workflow({
         steps: [
-            { id: "step1", action: "step1" },
+            { id: "step1", action: "step1", options: { count: 1 } },
             { id: "step2", action: "check", options: { list: "$ref.step1" }, type: "if" },
             { id: "step3True", action: "step3", options: { list: "$ref.step1" }, depends: ["step2.true"] },
             { id: "step3False", action: "step4", options: { list: "$ref.step1" }, depends: ["step2.false"] },
@@ -55,8 +56,12 @@ const logGreen = (...args: any[]) => {
         ]
     })
     const actions = {
-        step1: () => {
-            return [{ name: "jerry" }, { name: "tom" }]
+        step1: ({ count }: { count: number }) => {
+            if (count > 1) {
+                return [{ name: "jerry" }, { name: "tom" }]
+            } else {
+                return [{ name: "lily" }]
+            }
         },
         check: async (options: { list: any[] }) => {
             return options.list.length > 1
@@ -78,6 +83,6 @@ const logGreen = (...args: any[]) => {
             return { "result": null }
         }
     }
-    const history = await workflow.run({ actions, entry: "step1" })
+    const history = await workflow.run({ actions, entry: "step1", entryOptions: { count: 1 } })
     console.dir(history, { depth: null, colors: true })
 })();
