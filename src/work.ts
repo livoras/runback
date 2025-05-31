@@ -1,7 +1,7 @@
 import { collect, collectFromRefString, inject } from "./ref"
 import { createProxy } from "./createProxy"
 
-type Step = {
+export type Step = {
   id: string,
   action: string,
   type?: "trigger" | "step" | "if",
@@ -11,11 +11,11 @@ type Step = {
   each?: string,
 }
 
-type WorkflowOptions = {
+export type WorkflowOptions = {
   steps: Step[],
 }
 
-type RunOptions = {
+export type RunOptions = {
   actions?: Record<string, Function>,
   history?: Record<string, any>,
   always?: boolean,
@@ -23,39 +23,20 @@ type RunOptions = {
   entry?: string,
 }
 
-const logGreen = (...args: any[]) => {
-  console.log(`\x1b[32m${args.join(' ')}\x1b[0m`)
-}
-
-const actions1 = {
-  start: () => {
-    console.log("start")
-  },
-  getUserInfo: (options: { id: number }) => {
-    if (!options?.id) {
-      throw new Error("id is required")
-    }
-    logGreen("run action getUserInfo", options.id)
-    return { name: "jerry"  }
-  },
-  sayHi: ({ input: { name } }: { input: { name: string } }) => {
-    logGreen(`run action sayHi!! ${name}`)
-    return { result: `hi!!! ${name}` }
-  },
-  log: ({ message }: { message: string }) => {
-    logGreen(`run action log ${message}`)
-    return "OJBK"
-  },
-  checkUserName: ({ name }: { name: string }) => {
-    logGreen("run action checkUserName", name)
-    return ["jerry", "tom"].includes(name)
-  }
-}
-
+/**
+ * 深拷贝对象
+ * @param obj 要拷贝的对象
+ * @returns 拷贝后的对象
+ */
 const clone = (obj: any) => {
   return JSON.parse(JSON.stringify(obj))
 }
 
+/**
+ * 获取路径的所有前缀
+ * @param path 路径字符串
+ * @returns 前缀数组
+ */
 const getPrefixes = (path: string) => {
   const parts = path.split('.');
   return parts.map((_, i) => parts.slice(0, i + 1).join('.'));
@@ -94,6 +75,12 @@ const isAllDepsMet = (deps: string[], setKeys: Set<string>, cache: Map<string, b
   return result
 }
 
+/**
+ * 根据路径获取对象中的值
+ * @param o 对象
+ * @param p 路径字符串
+ * @returns 路径对应的值
+ */
 const getByPath = (o: any, p: string) => {
   return p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
 }
@@ -247,60 +234,3 @@ export class Workflow {
     // TODO
   }
 }
-
-
-// const wf = new Workflow({
-//   steps: [
-//     { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
-//     { id: "checkUserName", action: "checkUserName", options: { name: "$ref.getUserInfoId.name" }, type: "if" },
-//     { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" } }, depends: ["checkUserName.true"] },
-//     { id: "logId", action: "log", options: { message: "$ref.sayHiId.result" } },
-//     { id: "logId2", action: "log", options: { message: "$ref.sayHiId.result" } },
-//     { id: "logId3", action: "log", options: { message: ["$ref.logId", "$ref.logId2"] } },
-//   ]
-// })
-
-// wf.run({ entry: "getUserInfoId", actions: actions1 })
-
-const actions = {
-  start: () => {
-    console.log("start")
-  },
-  getUserInfo: (options: { id: number }) => {
-    if (!options?.id) {
-      throw new Error("id is required")
-    }
-    logGreen("run action getUserInfo", options.id)
-    return { name: "jerry"  }
-  },
-  sayHi: ({ input: { name } }: { input: { name: string } }) => {
-    logGreen(`run action sayHi!! ${name}`)
-    return { result: `hi!!! ${name}` }
-  },
-  log: ({ message }: { message: string }) => {
-    logGreen(`run action log ${message}`)
-    return `${message[0]} - ${message[1]}`
-  },
-  logItem: ({ message }: { message: string }) => {
-    logGreen(`run action logItem ${message}`)
-    return message
-  },
-  checkUserName: ({ name }: { name: string }) => {
-    logGreen("run action checkUserName", name)
-    return ["jerry", "tom"].includes(name)
-  },
-  getUserList: () => {
-    logGreen("run action getUserList")
-    return { list: [{ name: "jerry" }, { name: "tom" }] }
-  }
-}
-
-const wf2 = new Workflow({
-  steps: [
-    { id: "getUserListId", action: "getUserList" },
-    { id: "logId", action: "log", options: { message: ["$ref.$item.name", "$ref.$index"] }, each: "$ref.getUserListId.list" },
-    { id: "logItemId", action: "logItem", options: { message: "$ref.$item" }, each: "$ref.logId" },
-  ]
-})
-
-wf2.run({ entry: "getUserListId", actions })
