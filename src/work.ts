@@ -70,7 +70,7 @@ const isAllDepsMet = (deps: string[], setKeys: Set<string>) => {
   })
 }
 
-class Workflow {
+export class Workflow {
   public entry: string | undefined
   public deps: Record<string, string[]> = {}
 
@@ -131,6 +131,7 @@ class Workflow {
       const deps = this.deps[step.id];
       if (deps.length === 0) {
         console.warn(`step ${step.id} has no deps, but it is not entry`)
+        return false
       }
       // console.log('check deps', step.id, deps, setKeys)
       return isAllDepsMet(deps, setKeys);
@@ -151,6 +152,7 @@ class Workflow {
       const deps = this.deps[step.id]
       if (deps.length === 0) {
         console.warn(`step ${step.id} has no deps, but it is not entry`)
+        return false
       }
       if (isAllDepsMet(deps, setKeys)) {
         return step
