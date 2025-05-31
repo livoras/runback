@@ -5,3 +5,4 @@ dist/
 coverage/
 .env.local
 .env.*.local 
+test.json

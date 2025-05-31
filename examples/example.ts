@@ -1,5 +1,6 @@
-import { Workflow } from './workflow'
-import { LogLevel } from './logger'
+import { Workflow } from '../src/workflow'
+import { LogLevel } from '../src/logger'
+import { Work } from '../src/work'
 
 // 测试用的操作函数
 const logGreen = (...args: any[]) => {

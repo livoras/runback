@@ -150,9 +150,9 @@ export const inject = (to: any, from: any, mapping: Record<string, string>): voi
   
 
 
-const input =  { message: ["$ref.logId", "$ref.logId2"] }
+// const input =  { message: ["$ref.logId", "$ref.logId2"] }
 
-console.log(collectFromRefString(input));
+// console.log(collectFromRefString(input));
 /*
 {
   "users[0].name": "REF.a.b",

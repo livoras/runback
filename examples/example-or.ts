@@ -1,5 +1,5 @@
-import { Workflow } from './workflow'
-import { LogLevel } from './logger'
+import { Workflow } from '../src/workflow'
+import { LogLevel } from '../src/logger'
 import { count } from 'console';
 
 // 测试用的操作函数

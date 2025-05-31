@@ -11,6 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "examples/example-or.ts", "examples/example.ts"],
   "exclude": ["node_modules", "**/*.test.ts"]
 } 
