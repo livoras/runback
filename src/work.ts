@@ -147,22 +147,36 @@ const getPrefixes = (path: string) => {
 
 /**
  * 检查所有依赖是否已满足
- * @param deps 依赖列表
+ * @param deps 依赖列表，每个依赖可以是字符串或字符串数组（表示"或"关系）
  * @param setKeys 已设置的键集合
  * @param cache 依赖检查缓存
  * @returns 是否所有依赖都已满足
  */
-const isAllDepsMet = (deps: string[], setKeys: Set<string>, cache: Map<string, boolean> = new Map()) => {
+const isAllDepsMet = (deps: (string | string[])[], setKeys: Set<string>, cache: Map<string, boolean> = new Map()) => {
   // 如果没有依赖，直接返回 true
   if (deps.length === 0) return true
   
   // 使用缓存键（依赖数组+setKeys大小）来检查是否有缓存结果
-  const cacheKey = `${deps.join('|')}:${setKeys.size}`
+  const cacheKey = `${JSON.stringify(deps)}:${setKeys.size}`
   if (cache.has(cacheKey)) {
     return cache.get(cacheKey)!
   }
   
   const result = deps.every(dep => {
+    // 如果是数组，表示"或"关系，只要满足其中一个即可
+    if (Array.isArray(dep)) {
+      return dep.some(d => {
+        // 特殊依赖：$item 和 $index 总是被视为已满足
+        if (d.startsWith("$item") || d.startsWith("$index")) {
+          return true
+        }
+        // 检查依赖的前缀路径是否已满足
+        const prefixes = getPrefixes(d)
+        return prefixes.some(prefix => setKeys.has(prefix))
+      })
+    }
+    
+    // 单个依赖的处理（原有逻辑）
     // 特殊依赖：$item 和 $index 总是被视为已满足
     if (dep.startsWith("$item") || dep.startsWith("$index")) {
       return true
@@ -190,7 +204,7 @@ const getByPath = (o: any, p: string) => {
 
 export class Workflow {
   public entry: string | undefined
-  public deps: Record<string, string[]> = {}
+  public deps: Record<string, (string | string[])[]> = {}
   private logger: Logger
 
   constructor(public options: WorkflowOptions, logLevel: LogLevel = LogLevel.INFO) {
@@ -202,8 +216,8 @@ export class Workflow {
   parseDepends(steps: Step[]) {
     for (const step of steps) {
       const depends = step.depends ?? []
-      const optionsDeps =  collectFromRefString(step.options || {})
-      const deps = [...depends, ...Object.values(optionsDeps)]
+      const optionsDeps = collectFromRefString(step.options || {})
+      const deps = [...depends, ...Object.values(optionsDeps)] as (string | string[])[]
       if (step.each) {
         deps.push(step.each.replace("$ref.", ''))
       }
@@ -271,7 +285,7 @@ export class Workflow {
   
   private createContext(setKeys: Set<string>, initialContext: any = {}) {
     return createProxy(initialContext, (path, value) => {
-      this.logger.debug('--> Context change', path, value)
+      this.logger.debug(`\x1b[34m--> Context change\x1b[0m`, path, value)
       setKeys.add(path)
       this.logger.debug('Updated key set', Array.from(setKeys))
     })
@@ -366,12 +380,42 @@ export class Workflow {
     return results
   }
   
+  /**
+   * 将依赖映射转换为字符串映射，选择第一个满足条件的值
+   * @param mapping 依赖映射
+   * @param ctx 上下文对象
+   * @returns 字符串映射
+   */
+  private convertMappingToStringMapping(mapping: Record<string, string | string[]>, ctx: any): Record<string, string> {
+    const stringMapping: Record<string, string> = {}
+    for (const [key, value] of Object.entries(mapping)) {
+      if (Array.isArray(value)) {
+        // 对于数组形式的依赖，找到第一个满足条件的值
+        const satisfiedValue = value.find(v => {
+          const prefixes = getPrefixes(v)
+          return prefixes.some(prefix => {
+            const val = getByPath(ctx, prefix)
+            return val !== undefined && val !== null
+          })
+        })
+        if (satisfiedValue) {
+          stringMapping[key] = satisfiedValue
+        }
+      } else {
+        stringMapping[key] = value
+      }
+    }
+    this.logger.debug('-------->', stringMapping)
+    return stringMapping
+  }
+
   private prepareActionOptions(step: Step, ctx: any) {
     if (!step.options) return undefined
     
     const actionOption = clone(step.options)
     const mapping = collectFromRefString(actionOption)
-    inject(actionOption, ctx, mapping)
+    const stringMapping = this.convertMappingToStringMapping(mapping, ctx)
+    inject(actionOption, ctx, stringMapping)
     return actionOption
   }
   
@@ -380,7 +424,9 @@ export class Workflow {
     
     const itemOptions = clone(step.options)
     const mapping = collectFromRefString(itemOptions)
-    inject(itemOptions, { ...ctx, $item: item, $index: index }, mapping)
+    const itemContext = { ...ctx, $item: item, $index: index }
+    const stringMapping = this.convertMappingToStringMapping(mapping, itemContext)
+    inject(itemOptions, itemContext, stringMapping)
     return itemOptions
   }
 

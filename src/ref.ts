@@ -116,13 +116,21 @@ export const inject = (to: any, from: any, mapping: Record<string, string>): voi
   }
   */
   
-  export const collectFromRefString = (obj: any): Record<string, string> => {
-    const result: Record<string, string> = {};
+  export const collectFromRefString = (obj: any): Record<string, string | string[]> => {
+    const result: Record<string, string | string[]> = {};
   
     const walk = (current: any, path: (string | number)[] = []) => {
-      if (typeof current === 'string' && current.startsWith('$ref.')) {
-        result[path.join('.')] = current.slice(5);
-        return;
+      if (typeof current === 'string') {
+        if (current.startsWith('$ref.')) {
+          // 处理逗号分隔的引用
+          const refs = current.split(',').map(ref => ref.replace(/^\s*\$ref\./, '').trim());
+          if (refs.length > 1) {
+            result[path.join('.')] = refs;
+          } else {
+            result[path.join('.')] = refs[0];
+          }
+          return;
+        }
       }
   
       if (Array.isArray(current)) {

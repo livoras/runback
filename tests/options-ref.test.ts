@@ -1,0 +1,274 @@
+import { Workflow } from '../src/work'
+import { LogLevel } from '../src/logger'
+
+describe('Workflow with OR dependencies', () => {
+  it('should execute step5 with either step3True or step3False result', async () => {
+    // 记录执行顺序
+    const executionOrder: string[] = []
+    
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "step1" },
+        { id: "step2", action: "check", options: { list: "$ref.step1" }, type: "if" },
+        { id: "step3True", action: "step3", options: { list: "$ref.step1" }, depends: ["step2.true"] },
+        { id: "step3False", action: "step4", options: { list: "$ref.step1" }, depends: ["step2.false"] },
+        { id: "step5", action: "step5", options: { message: "$ref.step3True, $ref.step3False" } },
+      ]
+    }, LogLevel.DEBUG)
+
+    const actions = {
+      step1: () => {
+        executionOrder.push('step1')
+        return [{ name: "jerry" }, { name: "tom" }]
+      },
+      check: async (options: { list: any[] }) => {
+        executionOrder.push('step2')
+        return options.list.length > 1
+      },
+      step3: async (options: { list: any[] }) => {
+        executionOrder.push('step3True')
+        return 'from true branch'
+      },
+      step4: async (options: { list: any[] }) => {
+        executionOrder.push('step3False')
+        return 'from false branch'
+      },
+      step5: async (options: { message: string }) => {
+        executionOrder.push('step5')
+        return options.message
+      }
+    }
+
+    const history = await workflow.run({ actions, entry: "step1" })
+    const lastRecord = history[history.length - 1]
+
+    // 验证执行状态
+    expect(lastRecord.status).toBe('success')
+    
+    // 验证执行顺序
+    expect(executionOrder).toContain('step1')
+    expect(executionOrder).toContain('step2')
+    expect(executionOrder).toContain('step5')
+    
+    // 验证条件分支：只执行了其中一个分支
+    const hasTrueBranch = executionOrder.includes('step3True')
+    const hasFalseBranch = executionOrder.includes('step3False')
+    expect(hasTrueBranch !== hasFalseBranch).toBe(true) // 只能有一个分支执行
+    
+    // 验证 step5 的输入
+    const step5Record = lastRecord.steps['step5']
+    expect(step5Record.status).toBe('success')
+    expect(step5Record.inputs.message).toBe(hasTrueBranch ? 'from true branch' : 'from false branch')
+    
+    // 验证步骤执行状态
+    expect(lastRecord.steps['step1'].status).toBe('success')
+    expect(lastRecord.steps['step2'].status).toBe('success')
+    if (hasTrueBranch) {
+      expect(lastRecord.steps['step3True'].status).toBe('success')
+      expect(lastRecord.steps.hasOwnProperty('step3False')).toBe(false)
+    } else {
+      expect(lastRecord.steps.hasOwnProperty('step3True')).toBe(false)
+      expect(lastRecord.steps['step3False'].status).toBe('success')
+    }
+  })
+
+  it('should handle empty list case correctly', async () => {
+    const executionOrder: string[] = []
+    
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "step1" },
+        { id: "step2", action: "check", options: { list: "$ref.step1" }, type: "if" },
+        { id: "step3True", action: "step3", options: { list: "$ref.step1" }, depends: ["step2.true"] },
+        { id: "step3False", action: "step4", options: { list: "$ref.step1" }, depends: ["step2.false"] },
+        { id: "step5", action: "step5", options: { message: "$ref.step3True, $ref.step3False" } },
+      ]
+    }, LogLevel.DEBUG)
+
+    const actions = {
+      step1: () => {
+        executionOrder.push('step1')
+        return [] // 返回空列表
+      },
+      check: async (options: { list: any[] }) => {
+        executionOrder.push('step2')
+        return options.list.length > 1
+      },
+      step3: async (options: { list: any[] }) => {
+        executionOrder.push('step3True')
+        return 'from true branch'
+      },
+      step4: async (options: { list: any[] }) => {
+        executionOrder.push('step3False')
+        return 'from false branch'
+      },
+      step5: async (options: { message: string }) => {
+        executionOrder.push('step5')
+        return options.message
+      }
+    }
+
+    const history = await workflow.run({ actions, entry: "step1" })
+    const lastRecord = history[history.length - 1]
+
+    // 验证执行状态
+    expect(lastRecord.status).toBe('success')
+    
+    // 验证执行顺序
+    expect(executionOrder).toContain('step1')
+    expect(executionOrder).toContain('step2')
+    expect(executionOrder).toContain('step3False') // 空列表应该走 false 分支
+    expect(executionOrder).toContain('step5')
+    expect(executionOrder).not.toContain('step3True')
+    
+    // 验证 step5 的输入
+    const step5Record = lastRecord.steps['step5']
+    expect(step5Record.status).toBe('success')
+    expect(step5Record.inputs.message).toBe('from false branch')
+    
+    // 验证步骤执行状态
+    expect(lastRecord.steps['step1'].status).toBe('success')
+    expect(lastRecord.steps['step2'].status).toBe('success')
+    expect(lastRecord.steps.hasOwnProperty('step3True')).toBe(false)
+    expect(lastRecord.steps['step3False'].status).toBe('success')
+  })
+
+  it('should handle complex branches with different lengths', async () => {
+    const executionOrder: string[] = []
+    const results: Record<string, any> = {}
+    
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "generateData" },
+        { id: "step2", action: "checkLength", options: { data: "$ref.step1" }, type: "if" },
+        { id: "step3", action: "processData", options: { data: "$ref.step1" }, depends: ["step2.true"] },
+        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" }, type: "if", depends: ["step2.false"] },
+        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" }, depends: ["step3"] },
+        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" }, depends: ["step4.true"] },
+        { id: "step7", action: "combineResults", options: { 
+          message: "$ref.step3,$ref.step5,$ref.step6",
+          data: "$ref.step1"
+        } },
+      ]
+    }, LogLevel.DEBUG)
+
+    const actions = {
+      generateData: () => {
+        executionOrder.push('step1')
+        // 生成一个随机长度的数组，用于测试不同分支
+        const length = Math.floor(Math.random() * 4) // 0, 1, 2, 3
+        const data = Array(length).fill(0).map((_, i) => ({ id: i, value: `item${i}` }))
+        results.step1 = data
+        return data
+      },
+      checkLength: async (options: { data: any[] }) => {
+        executionOrder.push('step2')
+        return options.data.length > 2
+      },
+      processData: async (options: { data: any[] }) => {
+        executionOrder.push('step3')
+        const result = options.data.map(item => ({ ...item, processed: true }))
+        results.step3 = result
+        return result
+      },
+      checkNotEmpty: async (options: { data: any[] }) => {
+        executionOrder.push('step4')
+        return options.data.length > 0
+      },
+      furtherProcess: async (options: { data: any[] }) => {
+        executionOrder.push('step5')
+        const result = options.data.map(item => ({ ...item, furtherProcessed: true }))
+        results.step5 = result
+        return result
+      },
+      processEmpty: async (options: { data: any[] }) => {
+        executionOrder.push('step6')
+        const result = options.data.map(item => ({ ...item, emptyProcessed: true }))
+        results.step6 = result
+        return result
+      },
+      combineResults: async (options: { message: string, data: any[] }) => {
+        executionOrder.push('step7')
+        return {
+          message: options.message,
+          originalData: options.data,
+          executionPath: executionOrder.join(' -> ')
+        }
+      }
+    }
+
+    const history = await workflow.run({ actions, entry: "step1" })
+    const lastRecord = history[history.length - 1]
+
+    // 验证执行状态
+    expect(lastRecord.status).toBe('success')
+    
+    // 验证执行顺序的基本结构
+    expect(executionOrder[0]).toBe('step1')
+    expect(executionOrder[1]).toBe('step2')
+    expect(executionOrder[executionOrder.length - 1]).toBe('step7')
+    
+    // 验证分支执行
+    const hasStep3 = executionOrder.includes('step3')
+    const hasStep4 = executionOrder.includes('step4')
+    const hasStep5 = executionOrder.includes('step5')
+    const hasStep6 = executionOrder.includes('step6')
+    
+    // 验证分支逻辑
+    if (hasStep3) {
+      // 如果走了 step3 分支，那么一定会有 step5，且不会有 step4 和 step6
+      expect(hasStep5).toBe(true)
+      expect(hasStep4).toBe(false)
+      expect(hasStep6).toBe(false)
+      
+      // 验证 step7 的输入
+      const step7Record = lastRecord.steps['step7']
+      expect(step7Record.status).toBe('success')
+      expect(step7Record.inputs.message).toBe(results.step3)
+      
+      // 验证步骤执行状态
+      expect(lastRecord.steps['step1'].status).toBe('success')
+      expect(lastRecord.steps['step2'].status).toBe('success')
+      expect(lastRecord.steps['step3'].status).toBe('success')
+      expect(lastRecord.steps['step5'].status).toBe('success')
+      expect(lastRecord.steps.hasOwnProperty('step4')).toBe(false)
+      expect(lastRecord.steps.hasOwnProperty('step6')).toBe(false)
+    } else {
+      // 如果走了 step4 分支
+      expect(hasStep4).toBe(true)
+      expect(hasStep5).toBe(false)
+      
+      if (hasStep6) {
+        // 如果 step4 为 true，会执行 step6
+        expect(lastRecord.steps['step4'].status).toBe('success')
+        expect(lastRecord.steps['step6'].status).toBe('success')
+        expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
+        expect(lastRecord.steps.hasOwnProperty('step5')).toBe(false)
+        
+        // 验证 step7 的输入
+        const step7Record = lastRecord.steps['step7']
+        expect(step7Record.status).toBe('success')
+        expect(step7Record.inputs.message).toStrictEqual(results.step6)
+      } else {
+        // 如果 step4 为 false，直接结束
+        expect(lastRecord.steps['step4'].status).toBe('success')
+        expect(lastRecord.steps.hasOwnProperty('step6')).toBe(false)
+        expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
+        expect(lastRecord.steps.hasOwnProperty('step5')).toBe(false)
+        
+        // 验证 step7 的输入（这种情况下应该使用 step6 的结果，但因为 step6 没有执行，所以是 undefined）
+        const step7Record = lastRecord.steps['step7']
+        expect(step7Record.status).toBe('success')
+        expect(step7Record.inputs.message).toBeUndefined()
+      }
+    }
+    
+    // 验证最终结果
+    const finalResult = lastRecord.steps['step7'].outputs
+    expect(finalResult).toHaveProperty('message')
+    expect(finalResult).toHaveProperty('originalData')
+    expect(finalResult).toHaveProperty('executionPath')
+    expect(finalResult.originalData).toEqual(results.step1)
+    expect(finalResult.executionPath).toMatch(/^step1 -> step2 -> .* -> step7$/)
+  })
+}) 
