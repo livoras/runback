@@ -1,5 +1,6 @@
 import { collect, collectFromRefString, inject } from "./ref"
 import { createProxy } from "./createProxy"
+import { Logger, LogLevel, createDefaultLogger } from "./logger"
 
 export type Step = {
   id: string,
@@ -21,6 +22,7 @@ export type RunOptions = {
   always?: boolean,
   onlyRuns?: string[],
   entry?: string,
+  logLevel?: LogLevel,
 }
 
 /**
@@ -88,10 +90,12 @@ const getByPath = (o: any, p: string) => {
 export class Workflow {
   public entry: string | undefined
   public deps: Record<string, string[]> = {}
+  private logger: Logger
 
-  constructor(public options: WorkflowOptions) {
+  constructor(public options: WorkflowOptions, logLevel: LogLevel = LogLevel.INFO) {
+    this.logger = createDefaultLogger(logLevel)
     this.options.steps && this.parseDepends(this.options.steps)
-    console.log(this.deps)
+    this.logger.debug('Dependency parsing completed', this.deps)
   }
 
   parseDepends(steps: Step[]) {
@@ -107,50 +111,81 @@ export class Workflow {
   }
 
   async run(options?: RunOptions, stepsNotRun: Step[] = [...this.options.steps], stepsRun: Step[] = []) {
+    // 如果提供了日志级别，则更新日志管理器的级别
+    if (options?.logLevel !== undefined) {
+      this.logger.setLevel(options.logLevel)
+    }
+    
     let setKeys: Set<string> = new Set()
     let ctx = this.createContext(setKeys)
     
+    this.logger.info('Starting workflow execution')
+    
     while (stepsNotRun.length > 0) {
       const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys)
-      if (readySteps.length === 0) break
+      if (readySteps.length === 0) {
+        this.logger.info('No runnable steps, workflow execution completed')
+        break
+      }
       
-      console.log('\n--------------------------------')
-      console.log('readySteps', readySteps)
+      this.logger.debug('\n--------------------------------')
+      this.logger.info(`Preparing to execute ${readySteps.length} step(s)`, readySteps.map(s => s.id))
       
       await Promise.all(readySteps.map(step => 
         this.executeStep(step, options, ctx, stepsNotRun, stepsRun)
       ))
     }
+    
+    this.logger.info('Workflow execution completed')
+    return ctx
   }
   
   private createContext(setKeys: Set<string>) {
     return createProxy({}, (path, value) => {
-      console.log('--> change', path, value)
+      this.logger.debug('--> Context change', path, value)
       setKeys.add(path)
-      console.log('after setKeys', setKeys)
+      this.logger.debug('Updated key set', Array.from(setKeys))
     })
   }
   
   private async executeStep(step: Step, options: RunOptions | undefined, ctx: any, stepsNotRun: Step[], stepsRun: Step[]) {
-    const action = options?.actions?.[step.action]
-    if (!action) throw new Error(`action ${step.action} not found`)
+    this.logger.info(`Executing step: ${step.id}`, { action: step.action, type: step.type })
     
-    if (step.each) {
-      await this.executeEachStep(step, action, ctx)
-    } else {
-      await this.executeNormalStep(step, action, ctx)
+    const action = options?.actions?.[step.action]
+    if (!action) {
+      const errorMsg = `Action not found: ${step.action}`
+      this.logger.error(errorMsg)
+      throw new Error(errorMsg)
     }
     
-    this.moveStepToRun(step, stepsNotRun, stepsRun)
+    try {
+      if (step.each) {
+        await this.executeEachStep(step, action, ctx)
+      } else {
+        await this.executeNormalStep(step, action, ctx)
+      }
+      
+      this.moveStepToRun(step, stepsNotRun, stepsRun)
+      this.logger.info(`Step ${step.id} execution completed`)
+    } catch (error) {
+      this.logger.error(`Step ${step.id} execution failed`, error)
+      throw error
+    }
   }
   
   private async executeNormalStep(step: Step, action: Function, ctx: any) {
+    this.logger.debug(`Preparing to execute normal step: ${step.id}`)
+    
     const actionOption = this.prepareActionOptions(step, ctx)
+    this.logger.debug(`Options for step ${step.id}`, actionOption)
+    
     const result = actionOption ? await action(actionOption) : await action()
+    this.logger.debug(`Result of step ${step.id}`, result)
     
     if (step.type === 'if') {
       const branch = result ? 'true' : 'false'
       ctx[`${step.id}.${branch}`] = result === true
+      this.logger.debug(`Conditional step ${step.id} branch: ${branch}`)
     } else {
       ctx[step.id] = result
     }
@@ -159,20 +194,29 @@ export class Workflow {
   }
   
   private async executeEachStep(step: Step, action: Function, ctx: any) {
-    console.log("each step")
+    this.logger.debug(`Preparing to execute iteration step: ${step.id}`)
+    
     const each = step.each!.replace("$ref.", '')
     const list = getByPath(ctx, each)
-    console.log(each, list)
+    
+    if (!Array.isArray(list)) {
+      const errorMsg = `Data source ${each} for iteration step ${step.id} is not an array`
+      this.logger.error(errorMsg, list)
+      throw new Error(errorMsg)
+    }
+    
+    this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list.length })
     
     const results: any[] = []
     await Promise.all(list.map(async (item: any, index: number) => {
+      this.logger.debug(`Executing item ${index} of iteration step ${step.id}`)
       const itemOptions = this.prepareEachItemOptions(step, ctx, item, index)
       const result = itemOptions ? await action(itemOptions) : await action()
-      console.log('each result', result)
+      this.logger.debug(`Result of item ${index} for iteration step ${step.id}`, result)
       results.push(result)
     }))
     
-    console.log('run each results', results)
+    this.logger.debug(`All results for iteration step ${step.id}`, { count: results.length })
     ctx[step.id] = results
     return results
   }
@@ -207,27 +251,48 @@ export class Workflow {
     // 创建依赖检查缓存，避免重复计算
     const depsCache = new Map<string, boolean>()
     
-    return stepsNotRun.filter(step => {
+    this.logger.debug('Checking runnable steps', { stepsCount: stepsNotRun.length })
+    
+    const runnableSteps = stepsNotRun.filter(step => {
       // 入口步骤总是可运行的
-      if (step.id === runOptions?.entry) return true
+      if (step.id === runOptions?.entry) {
+        this.logger.debug(`Step ${step.id} is entry step, can run`)
+        return true
+      }
       
       const deps = this.deps[step.id]
       if (deps.length === 0) {
-        console.warn(`步骤 ${step.id} 没有依赖，但不是入口步骤`)
+        this.logger.warn(`Step ${step.id} has no dependencies but is not an entry step`)
         return false
       }
       
       // 使用缓存检查依赖
-      return isAllDepsMet(deps, setKeys, depsCache)
+      const canRun = isAllDepsMet(deps, setKeys, depsCache)
+      if (canRun) {
+        this.logger.debug(`Dependencies for step ${step.id} are satisfied, can run`)
+      } else {
+        this.logger.debug(`Dependencies for step ${step.id} are not satisfied, cannot run yet`, { deps })
+      }
+      
+      return canRun
     })
+    
+    this.logger.debug('Found runnable steps', { count: runnableSteps.length })
+    return runnableSteps
   }
 
   // getNextStep 方法已被 getAllRunnableSteps 替代，不再需要
 
   moveStepToRun(step: Step, stepsNotRun: Step[], stepsRun: Step[]) {
     // stepsNotRun = stepsNotRun.filter(s => s.id !== step.id)
-    stepsNotRun.splice(stepsNotRun.indexOf(step), 1)
-    stepsRun.push(step)
+    const index = stepsNotRun.indexOf(step)
+    if (index !== -1) {
+      stepsNotRun.splice(index, 1)
+      stepsRun.push(step)
+      this.logger.debug(`Step ${step.id} moved to run list`, { notRunCount: stepsNotRun.length, runCount: stepsRun.length })
+    } else {
+      this.logger.warn(`Attempted to move step not in the not-run list: ${step.id}`)
+    }
   }
 
   json() {
