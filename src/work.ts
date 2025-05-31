@@ -152,7 +152,7 @@ export class Workflow {
       const deps = this.deps[step.id]
       if (deps.length === 0) {
         console.warn(`step ${step.id} has no deps, but it is not entry`)
-        return false
+        continue
       }
       if (isAllDepsMet(deps, setKeys)) {
         return step

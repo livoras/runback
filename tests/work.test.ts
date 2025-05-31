@@ -108,6 +108,40 @@ describe('Workflow', () => {
     })
   })
 
+  describe('entry、无依赖、依赖 entry 的 step 执行情况', () => {
+    it('step1 (entry) 和 step3 (依赖 entry) 被执行，step2 (无依赖) 不被执行', async () => {
+      const step1Action = jest.fn()
+      const step2Action = jest.fn()
+      const step3Action = jest.fn()
+      const wf = new Workflow({
+        steps: [
+          { id: "step1", action: "step1Action" }, // entry
+          { id: "step2", action: "step2Action" }, // 无依赖
+          { id: "step3", action: "step3Action", options: { from: "$ref.step1" } }, // 自动依赖 step1
+        ]
+      })
+      await wf.run({ actions: { step1Action, step2Action, step3Action }, entry: "step1" })
+      expect(step1Action).toHaveBeenCalled()
+      expect(step3Action).toHaveBeenCalledWith({ from: undefined }) // step1Action 返回 undefined，from: undefined
+      expect(step2Action).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('孤立 step 不会被执行', () => {
+    it('should not execute steps without depends and not entry', async () => {
+      const orphanAction = jest.fn()
+      const wf = new Workflow({
+        steps: [
+          { id: "entryStep", action: "log", options: { message: "entry" } },
+          { id: "orphanStep", action: "orphanAction" }, // 没有 depends，也不是 entry
+        ]
+      })
+      await wf.run({ actions: { ...mockActions, orphanAction }, entry: "entryStep" })
+      expect(mockActions.log).toHaveBeenCalledWith({ message: "entry" })
+      expect(orphanAction).not.toHaveBeenCalled()
+    })
+  })
+
   describe('parameter collection', () => {
     it('should correctly collect and inject parameters', async () => {
       const wf = new Workflow({
