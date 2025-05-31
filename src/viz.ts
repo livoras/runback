@@ -1,4 +1,4 @@
-import { Workflow } from './work';
+import { Workflow } from './workflow';
 import * as fs from 'fs';
 import * as path from 'path';
 import open from 'open';

@@ -1,4 +1,4 @@
-import { Workflow } from './work';
+import { Workflow } from './workflow';
 import { visualize, visualizeInBrowser } from './viz';
 import { LogLevel } from './logger';
 

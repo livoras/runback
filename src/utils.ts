@@ -1,4 +1,4 @@
-import { Workflow, Step } from './work';
+import { Workflow, Step } from './workflow';
 
 /**
  * 获取工作流的节点和边数据

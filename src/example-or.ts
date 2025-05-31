@@ -1,4 +1,4 @@
-import { Workflow } from './work'
+import { Workflow } from './workflow'
 import { LogLevel } from './logger'
 
 // 测试用的操作函数

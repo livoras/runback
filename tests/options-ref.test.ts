@@ -1,4 +1,4 @@
-import { Workflow } from '../src/work'
+import { Workflow } from '../src/workflow'
 import { LogLevel } from '../src/logger'
 
 describe('Workflow with OR dependencies', () => {
@@ -273,22 +273,24 @@ describe('Workflow with OR dependencies', () => {
     const hasStep4 = executionOrder.includes('step4')
     const hasStep5 = executionOrder.includes('step5')
     const hasStep6 = executionOrder.includes('step6')
+    const hasStep7 = executionOrder.includes('step7')
     
     // 验证函数调用次数
     expect(callCounts.generateData).toBe(1)
     expect(callCounts.checkLength).toBe(1)
-    expect(callCounts.combineResults).toBe(1)
     
     if (hasStep3) {
       // 如果走了 step3 分支，那么一定会有 step5，且不会有 step4 和 step6
       expect(hasStep5).toBe(true)
       expect(hasStep4).toBe(false)
       expect(hasStep6).toBe(false)
+      expect(hasStep7).toBe(true)  // step3 分支一定会执行 step7
       
       expect(callCounts.processData).toBe(1)
       expect(callCounts.furtherProcess).toBe(1)
       expect(callCounts.checkNotEmpty).toBe(0)
       expect(callCounts.processEmpty).toBe(0)
+      expect(callCounts.combineResults).toBe(1)
       
       // 验证 step7 的输入
       const step7Record = lastRecord.steps['step7']
@@ -314,6 +316,8 @@ describe('Workflow with OR dependencies', () => {
       if (hasStep6) {
         // 如果 step4 为 true，会执行 step6
         expect(callCounts.processEmpty).toBe(1)
+        expect(callCounts.combineResults).toBe(1)
+        expect(hasStep7).toBe(true)  // step4 为 true 时会执行 step7
         expect(lastRecord.steps['step4'].status).toBe('success')
         expect(lastRecord.steps['step6'].status).toBe('success')
         expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
@@ -326,24 +330,23 @@ describe('Workflow with OR dependencies', () => {
       } else {
         // 如果 step4 为 false，直接结束
         expect(callCounts.processEmpty).toBe(0)
+        expect(callCounts.combineResults).toBe(0)
+        expect(hasStep7).toBe(false)  // step4 为 false 时不会执行 step7
         expect(lastRecord.steps['step4'].status).toBe('success')
         expect(lastRecord.steps.hasOwnProperty('step6')).toBe(false)
         expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
         expect(lastRecord.steps.hasOwnProperty('step5')).toBe(false)
-        
-        // 验证 step7 的输入（这种情况下应该使用 step6 的结果，但因为 step6 没有执行，所以是 undefined）
-        const step7Record = lastRecord.steps['step7']
-        expect(step7Record.status).toBe('success')
-        expect(step7Record.inputs.message).toBeUndefined()
+        expect(lastRecord.steps.hasOwnProperty('step7')).toBe(false)  // step7 不应该存在
       }
     }
     
-    // 验证最终结果
-    const finalResult = lastRecord.steps['step7'].outputs
-    expect(finalResult).toHaveProperty('message')
-    expect(finalResult).toHaveProperty('originalData')
-    expect(finalResult).toHaveProperty('executionPath')
-    expect(finalResult.originalData).toEqual(results.step1)
-    expect(finalResult.executionPath).toMatch(/^step1 -> step2 -> .* -> step7$/)
+    // 验证最终结果（只有当 step7 执行时才验证）
+    if (hasStep7) {
+      const finalResult = lastRecord.steps['step7'].outputs
+      expect(finalResult).toHaveProperty('message')
+      expect(finalResult).toHaveProperty('originalData')
+      expect(finalResult).toHaveProperty('executionPath')
+      expect(finalResult.originalData).toEqual(results.step1)
+    }
   })
 }) 

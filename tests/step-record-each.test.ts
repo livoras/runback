@@ -1,4 +1,4 @@
-import { Workflow } from '../src/work';
+import { Workflow } from '../src/workflow';
 import { createDefaultLogger, LogLevel } from '../src/logger';
 
 describe('Step Execution Records with Each', () => {

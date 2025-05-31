@@ -1,4 +1,4 @@
-import { Workflow } from '../src/work'
+import { Workflow } from '../src/workflow'
 
 describe('resume functionality', () => {
   beforeEach(() => {
