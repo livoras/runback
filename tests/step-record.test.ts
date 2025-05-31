@@ -64,14 +64,15 @@ describe('Step Execution Records', () => {
 
     // The history should still be available in the error case
     history = await workflow.run({
-      actions: { failingAction: () => Promise.resolve('recovered') },
+      actions: { failingAction: () => Promise.reject('recovered') },
       entry: 'step1',
       history: []
     })
 
+    console.dir(history, {depth: null})
     const stepRecord = history[0]?.steps?.step1
-    expect(stepRecord?.status).toBe('success')
-    expect(stepRecord?.outputs).toBe('recovered')
+    expect(stepRecord?.status).toBe('failed')
+    expect(stepRecord?.outputs).toBeUndefined()
   })
 
   it('should track each step execution with multiple items', async () => {
