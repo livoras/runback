@@ -461,7 +461,10 @@ if (require.main === module) {
         return { userName: options.user.name }
       }
     }
-      const history = await workflow.run({ actions, entry: "step1" })
-      console.dir(history, { depth: null, colors: true })
+    const history = await workflow.run({ actions, entry: "step1" })
+    console.dir(history, { depth: null, colors: true })
+
+    const history2 = await workflow.run({ actions, entry: "step1", history })
+    console.dir(history2, { depth: null, colors: true })
   })();
 }
