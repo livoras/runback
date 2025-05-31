@@ -77,21 +77,21 @@ const wf3 = new Workflow({
 })
 
 // Set log level to ERROR at runtime
-wf3.run({ entry: "getUserListId", actions, logLevel: LogLevel.ERROR })
+// wf3.run({ entry: "getUserListId", actions, logLevel: LogLevel.ERROR })
 
 
-console.log('\n=== Test Workflow 4 (Workflow with Error, Log Level: WARN) ===\n')
-// Test workflow 4 - Deliberately introducing an error, using WARN log level
-const wf4 = new Workflow({
-  steps: [
-    { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
-    // Deliberately using a non-existent action
-    { id: "nonExistingAction", action: "nonExistingAction", depends: ["getUserInfoId"] },
-  ]
-}, LogLevel.WARN)
+// console.log('\n=== Test Workflow 4 (Workflow with Error, Log Level: WARN) ===\n')
+// // Test workflow 4 - Deliberately introducing an error, using WARN log level
+// const wf4 = new Workflow({
+//   steps: [
+//     { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
+//     // Deliberately using a non-existent action
+//     { id: "nonExistingAction", action: "nonExistingAction", depends: ["getUserInfoId"] },
+//   ]
+// }, LogLevel.WARN)
 
-try {
-  wf4.run({ entry: "getUserInfoId", actions })
-} catch (error: any) {
-  console.log('Caught workflow error:', error.message)
-}
+// try {
+//   wf4.run({ entry: "getUserInfoId", actions })
+// } catch (error: any) {
+//   console.log('Caught workflow error:', error.message)
+// }
