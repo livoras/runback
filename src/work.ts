@@ -190,7 +190,7 @@ export class Workflow {
     
     if (step.type === 'if') {
       const branch = result ? 'true' : 'false'
-      ctx[`${step.id}.${branch}`] = result === true
+      ctx[`${step.id}.${branch}`] = true
       this.logger.debug(`Conditional step ${step.id} branch: ${branch}`)
     } else {
       ctx[step.id] = result
