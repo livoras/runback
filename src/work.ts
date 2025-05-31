@@ -22,7 +22,7 @@ export type RunStatus = 'running' | 'failed' | 'success' | "aborted" | "pending"
 export type RunOptions = {
   actions?: Record<string, Function>,
   history?: RunHistoryRecord[], // 执行记录数组
-  useHisotry?: boolean,
+  // useHisotry?: boolean,
   onlyRuns?: string[],
   entry?: string,
   logLevel?: LogLevel,
@@ -38,6 +38,7 @@ interface StepExecutionRecord {
   options?: Record<string, any>; // 步骤配置选项（来自step.options）
   inputs: any;            // 输入参数（来自runOptions）
   outputs?: any;          // 输出结果
+  onlyRun: boolean;       // 是否在 onlyRuns 模式下运行
   error?: {               // 错误信息(如果执行失败)
     message: string;
     stack?: string;
@@ -91,7 +92,7 @@ const markRecordFailed = (record: RunHistoryRecord, error: Error) => {
   }
 }
 
-const createRunningStepRecord = (step: Step, ctx: any): StepExecutionRecord => {
+const createRunningStepRecord = (step: Step, ctx: any, onlyRun: boolean = false): StepExecutionRecord => {
   return {
     step,
     startTime: new Date().toISOString(),
@@ -101,6 +102,7 @@ const createRunningStepRecord = (step: Step, ctx: any): StepExecutionRecord => {
     options: step.options,
     inputs: null,
     outputs: undefined,
+    onlyRun,
     error: undefined,
     context: clone(ctx),
   }
@@ -221,6 +223,18 @@ export class Workflow {
       let setKeys: Set<string> = new Set()
       let ctx = this.createContext(setKeys)
       
+      // 如果指定了 onlyRuns，从历史记录恢复上下文
+      if (options?.onlyRuns?.length) {
+        this.logger.info(`Running only specified steps: ${options.onlyRuns.join(', ')}`);
+        
+        // 在 onlyRuns 模式下，从历史记录恢复上下文
+        if (history.length > 0) {
+          const lastRecord = history[history.length - 1];
+          ctx = this.createContext(setKeys, lastRecord.context);
+          this.logger.debug('Restored context from history for onlyRuns mode', ctx);
+        }
+      }
+      
       this.logger.info('Starting workflow execution')
       
       while (stepsNotRun.length > 0) {
@@ -249,8 +263,8 @@ export class Workflow {
     return history
   }
   
-  private createContext(setKeys: Set<string>) {
-    return createProxy({}, (path, value) => {
+  private createContext(setKeys: Set<string>, initialContext: any = {}) {
+    return createProxy(initialContext, (path, value) => {
       this.logger.debug('--> Context change', path, value)
       setKeys.add(path)
       this.logger.debug('Updated key set', Array.from(setKeys))
@@ -260,7 +274,8 @@ export class Workflow {
   private async executeStep(step: Step, options: RunOptions | undefined, ctx: any, stepsNotRun: Step[], stepsRun: Step[], record: RunHistoryRecord) {
     this.logger.info(`Executing step: ${step.id}`, { action: step.action, type: step.type })
 
-    const stepRecord = createRunningStepRecord(step, ctx)
+    const onlyRun = options?.onlyRuns?.includes(step.id) || false;
+    const stepRecord = createRunningStepRecord(step, ctx, onlyRun)
     record.steps[step.id] = stepRecord
     
     const action = options?.actions?.[step.action]
@@ -377,6 +392,12 @@ export class Workflow {
     
     this.logger.debug('Checking runnable steps', { stepsCount: stepsNotRun.length })
     
+    // 如果指定了 onlyRuns，则跳过依赖检查，直接返回匹配的步骤
+    if (runOptions.onlyRuns?.length) {
+      this.logger.debug('Running in onlyRuns mode, skipping dependency checks');
+      return stepsNotRun.filter(step => runOptions.onlyRuns?.includes(step.id));
+    }
+    
     const runnableSteps = stepsNotRun.filter(step => {
       // 入口步骤总是可运行的
       if (step.id === runOptions?.entry) {
@@ -465,6 +486,29 @@ if (require.main === module) {
     console.dir(history, { depth: null, colors: true })
 
     const history2 = await workflow.run({ actions, entry: "step1", history })
+    console.dir(history2, { depth: null, colors: true })
+  })();
+
+  (async () => {
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "step1" },
+        { id: "step2", action: "step2", each: "$ref.step1", options: { user: "$ref.$item" } },
+      ]
+    })
+    const actions = {
+      step1: () => {
+        return [{ name: "jerry" }, { name: "tom" }]
+      },
+      step2: async (options: { user: any }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return { userName: options.user.name }
+      }
+    }
+    const history = await workflow.run({ actions, entry: "step1" })
+    console.dir(history, { depth: null, colors: true })
+
+    const history2 = await workflow.run({ actions, entry: "step1", history, onlyRuns: ["step2"] })
     console.dir(history2, { depth: null, colors: true })
   })();
 }
