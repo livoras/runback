@@ -55,5 +55,6 @@ import { Work } from '../src/work'
     // })
     // console.dir(work.lastRun, { depth: null, colors: true })
     console.log(work.steps)
-    await work.run({ entry: 'step1', entryOptions: { name: 'It works!' } })
+    await work.run({ entry: 'step1', entryOptions: { name: 'It works!??' } })
+    await work.run({ entry: 'split', entryOptions: { str: 'It works too!??' } })
   })()
