@@ -105,10 +105,10 @@ export class Logger {
         console.warn(formattedMessage, ...args);
         break;
       case LogLevel.INFO:
-        console.info(formattedMessage, ...args);
+        // console.info(formattedMessage, ...args);
         break;
       case LogLevel.DEBUG:
-        console.log(formattedMessage, ...args);
+        // console.log(formattedMessage, ...args);
         break;
     }
   }

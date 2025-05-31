@@ -176,7 +176,7 @@ describe('Workflow with OR dependencies', () => {
     expect(lastRecord.steps['step3False'].status).toBe('success')
   })
 
-  it('should handle complex branches with different lengths', async () => {
+  it('should handle long array (length > 2) and execute true branch', async () => {
     const executionOrder: string[] = []
     const results: Record<string, any> = {}
     const callCounts: Record<string, number> = {
@@ -204,13 +204,13 @@ describe('Workflow with OR dependencies', () => {
       ]
     }, LogLevel.DEBUG)
 
+
     const actions = {
       generateData: () => {
         callCounts.generateData++
         executionOrder.push('step1')
-        // 生成一个随机长度的数组，用于测试不同分支
-        const length = Math.floor(Math.random() * 4) // 0, 1, 2, 3
-        const data = Array(length).fill(0).map((_, i) => ({ id: i, value: `item${i}` }))
+        // 返回长度大于2的数组，确保走true分支
+        const data = [{ id: 1, value: 'item1' }, { id: 2, value: 'item2' }, { id: 3, value: 'item3' }]
         results.step1 = data
         return data
       },
@@ -262,91 +262,271 @@ describe('Workflow with OR dependencies', () => {
     // 验证执行状态
     expect(lastRecord.status).toBe('success')
     
-    // 验证执行顺序的基本结构
-    expect(executionOrder[0]).toBe('step1')
-    expect(executionOrder[1]).toBe('step2')
-    // 移除对最后一个执行步骤的断言，因为根据分支条件，最后一个步骤可能是 step4 或 step7
-    // expect(executionOrder[executionOrder.length - 1]).toBe('step7')
-    
-    // 验证分支执行
-    const hasStep3 = executionOrder.includes('step3')
-    const hasStep4 = executionOrder.includes('step4')
-    const hasStep5 = executionOrder.includes('step5')
-    const hasStep6 = executionOrder.includes('step6')
-    const hasStep7 = executionOrder.includes('step7')
+    // 验证执行顺序
+    expect(executionOrder).toEqual([
+      'step1', 'step2', 'step3', 'step5', 'step7'
+    ])
     
     // 验证函数调用次数
     expect(callCounts.generateData).toBe(1)
     expect(callCounts.checkLength).toBe(1)
+    expect(callCounts.processData).toBe(1)
+    expect(callCounts.furtherProcess).toBe(1)
+    expect(callCounts.combineResults).toBe(1)
+    expect(callCounts.checkNotEmpty).toBe(0)
+    expect(callCounts.processEmpty).toBe(0)
     
-    if (hasStep3) {
-      // 如果走了 step3 分支，那么一定会有 step5，且不会有 step4 和 step6
-      expect(hasStep5).toBe(true)
-      expect(hasStep4).toBe(false)
-      expect(hasStep6).toBe(false)
-      expect(hasStep7).toBe(true)  // step3 分支一定会执行 step7
-      
-      expect(callCounts.processData).toBe(1)
-      expect(callCounts.furtherProcess).toBe(1)
-      expect(callCounts.checkNotEmpty).toBe(0)
-      expect(callCounts.processEmpty).toBe(0)
-      expect(callCounts.combineResults).toBe(1)
-      
-      // 验证 step7 的输入
-      const step7Record = lastRecord.steps['step7']
-      expect(step7Record.status).toBe('success')
-      expect(step7Record.inputs.message).toBe(results.step3)
-      
-      // 验证步骤执行状态
-      expect(lastRecord.steps['step1'].status).toBe('success')
-      expect(lastRecord.steps['step2'].status).toBe('success')
-      expect(lastRecord.steps['step3'].status).toBe('success')
-      expect(lastRecord.steps['step5'].status).toBe('success')
-      expect(lastRecord.steps.hasOwnProperty('step4')).toBe(false)
-      expect(lastRecord.steps.hasOwnProperty('step6')).toBe(false)
-    } else {
-      // 如果走了 step4 分支
-      expect(hasStep4).toBe(true)
-      expect(hasStep5).toBe(false)
-      
-      expect(callCounts.processData).toBe(0)
-      expect(callCounts.furtherProcess).toBe(0)
-      expect(callCounts.checkNotEmpty).toBe(1)
-      
-      if (hasStep6) {
-        // 如果 step4 为 true，会执行 step6
-        expect(callCounts.processEmpty).toBe(1)
-        expect(callCounts.combineResults).toBe(1)
-        expect(hasStep7).toBe(true)  // step4 为 true 时会执行 step7
-        expect(lastRecord.steps['step4'].status).toBe('success')
-        expect(lastRecord.steps['step6'].status).toBe('success')
-        expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
-        expect(lastRecord.steps.hasOwnProperty('step5')).toBe(false)
-        
-        // 验证 step7 的输入
-        const step7Record = lastRecord.steps['step7']
-        expect(step7Record.status).toBe('success')
-        expect(step7Record.inputs.message).toStrictEqual(results.step6)
-      } else {
-        // 如果 step4 为 false，直接结束
-        expect(callCounts.processEmpty).toBe(0)
-        expect(callCounts.combineResults).toBe(0)
-        expect(hasStep7).toBe(false)  // step4 为 false 时不会执行 step7
-        expect(lastRecord.steps['step4'].status).toBe('success')
-        expect(lastRecord.steps.hasOwnProperty('step6')).toBe(false)
-        expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
-        expect(lastRecord.steps.hasOwnProperty('step5')).toBe(false)
-        expect(lastRecord.steps.hasOwnProperty('step7')).toBe(false)  // step7 不应该存在
+    // 验证步骤执行状态
+    expect(lastRecord.steps['step1'].status).toBe('success')
+    expect(lastRecord.steps['step2'].status).toBe('success')
+    expect(lastRecord.steps['step3'].status).toBe('success')
+    expect(lastRecord.steps['step5'].status).toBe('success')
+    expect(lastRecord.steps['step7'].status).toBe('success')
+    expect(lastRecord.steps.hasOwnProperty('step4')).toBe(false)
+    expect(lastRecord.steps.hasOwnProperty('step6')).toBe(false)
+    
+    // 验证 step7 的输入
+    const step7Record = lastRecord.steps['step7']
+    expect(step7Record.status).toBe('success')
+    expect(step7Record.inputs.message).toStrictEqual(results.step3)
+    
+    // 验证最终结果
+    const finalResult = lastRecord.steps['step7'].outputs
+    expect(finalResult).toHaveProperty('message')
+    expect(finalResult).toHaveProperty('originalData')
+    expect(finalResult).toHaveProperty('executionPath')
+    expect(finalResult.originalData).toEqual(results.step1)
+  })
+  
+  it('should handle short array (length <= 2) and execute false branch', async () => {
+    const executionOrder: string[] = []
+    const results: Record<string, any> = {}
+    const callCounts: Record<string, number> = {
+      generateData: 0,
+      checkLength: 0,
+      processData: 0,
+      checkNotEmpty: 0,
+      furtherProcess: 0,
+      processEmpty: 0,
+      combineResults: 0
+    }
+    
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "generateData" },
+        { id: "step2", action: "checkLength", options: { data: "$ref.step1" }, type: "if" },
+        { id: "step3", action: "processData", options: { data: "$ref.step1" }, depends: ["step2.true"] },
+        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" }, type: "if", depends: ["step2.false"] },
+        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" }, depends: ["step3"] },
+        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" }, depends: ["step4.true"] },
+        { id: "step7", action: "combineResults", options: { 
+          message: "$ref.step3,$ref.step5,$ref.step6",
+          data: "$ref.step1"
+        } },
+      ]
+    }, LogLevel.DEBUG)
+
+    const actions = {
+      generateData: () => {
+        callCounts.generateData++
+        executionOrder.push('step1')
+        // 返回长度为2的数组，确保走false分支
+        const data = [{ id: 1, value: 'item1' }, { id: 2, value: 'item2' }]
+        results.step1 = data
+        return data
+      },
+      checkLength: async (options: { data: any[] }) => {
+        callCounts.checkLength++
+        executionOrder.push('step2')
+        return options.data.length > 2
+      },
+      processData: async (options: { data: any[] }) => {
+        callCounts.processData++
+        executionOrder.push('step3')
+        const result = options.data.map(item => ({ ...item, processed: true }))
+        results.step3 = result
+        return result
+      },
+      checkNotEmpty: async (options: { data: any[] }) => {
+        callCounts.checkNotEmpty++
+        executionOrder.push('step4')
+        // 返回true，测试执行step6和step7的情况
+        return true
+      },
+      furtherProcess: async (options: { data: any[] }) => {
+        callCounts.furtherProcess++
+        executionOrder.push('step5')
+        const result = options.data.map(item => ({ ...item, furtherProcessed: true }))
+        results.step5 = result
+        return result
+      },
+      processEmpty: async (options: { data: any[] }) => {
+        callCounts.processEmpty++
+        executionOrder.push('step6')
+        const result = options.data.map(item => ({ ...item, emptyProcessed: true }))
+        results.step6 = result
+        return result
+      },
+      combineResults: async (options: { message: string, data: any[] }) => {
+        callCounts.combineResults++
+        executionOrder.push('step7')
+        return {
+          message: options.message,
+          originalData: options.data,
+          executionPath: executionOrder.join(' -> ')
+        }
       }
     }
+
+    const history = await workflow.run({ actions, entry: "step1" })
+    const lastRecord = history[history.length - 1]
+
+    // 验证执行状态
+    expect(lastRecord.status).toBe('success')
     
-    // 验证最终结果（只有当 step7 执行时才验证）
-    if (hasStep7) {
-      const finalResult = lastRecord.steps['step7'].outputs
-      expect(finalResult).toHaveProperty('message')
-      expect(finalResult).toHaveProperty('originalData')
-      expect(finalResult).toHaveProperty('executionPath')
-      expect(finalResult.originalData).toEqual(results.step1)
+    // 验证执行顺序
+    expect(executionOrder).toEqual([
+      'step1', 'step2', 'step4', 'step6', 'step7'
+    ])
+    
+    // 验证函数调用次数
+    expect(callCounts.generateData).toBe(1)
+    expect(callCounts.checkLength).toBe(1)
+    expect(callCounts.checkNotEmpty).toBe(1)
+    expect(callCounts.processEmpty).toBe(1)
+    expect(callCounts.combineResults).toBe(1)
+    expect(callCounts.processData).toBe(0)
+    expect(callCounts.furtherProcess).toBe(0)
+    
+    // 验证步骤执行状态
+    expect(lastRecord.steps['step1'].status).toBe('success')
+    expect(lastRecord.steps['step2'].status).toBe('success')
+    expect(lastRecord.steps['step4'].status).toBe('success')
+    expect(lastRecord.steps['step6'].status).toBe('success')
+    expect(lastRecord.steps['step7'].status).toBe('success')
+    expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
+    expect(lastRecord.steps.hasOwnProperty('step5')).toBe(false)
+    
+    // 验证 step7 的输入
+    const step7Record = lastRecord.steps['step7']
+    expect(step7Record.status).toBe('success')
+    expect(step7Record.inputs.message).toStrictEqual(results.step6)
+    
+    // 验证最终结果
+    const finalResult = lastRecord.steps['step7'].outputs
+    expect(finalResult).toHaveProperty('message')
+    expect(finalResult).toHaveProperty('originalData')
+    expect(finalResult).toHaveProperty('executionPath')
+    expect(finalResult.originalData).toEqual(results.step1)
+  })
+  
+  it('should handle empty array and skip all processing steps', async () => {
+    const executionOrder: string[] = []
+    const results: Record<string, any> = {}
+    const callCounts: Record<string, number> = {
+      generateData: 0,
+      checkLength: 0,
+      processData: 0,
+      checkNotEmpty: 0,
+      furtherProcess: 0,
+      processEmpty: 0,
+      combineResults: 0
     }
+    
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "generateData" },
+        { id: "step2", action: "checkLength", options: { data: "$ref.step1" }, type: "if" },
+        { id: "step3", action: "processData", options: { data: "$ref.step1" }, depends: ["step2.true"] },
+        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" }, type: "if", depends: ["step2.false"] },
+        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" }, depends: ["step3"] },
+        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" }, depends: ["step4.true"] },
+        { id: "step7", action: "combineResults", options: { 
+          message: "$ref.step3,$ref.step5,$ref.step6",
+          data: "$ref.step1"
+        } },
+      ]
+    }, LogLevel.DEBUG)
+
+    const actions = {
+      generateData: () => {
+        callCounts.generateData++
+        executionOrder.push('step1')
+        // 返回空数组
+        const data: any[] = []
+        results.step1 = data
+        return data
+      },
+      checkLength: async (options: { data: any[] }) => {
+        callCounts.checkLength++
+        executionOrder.push('step2')
+        return options.data.length > 2
+      },
+      processData: async (options: { data: any[] }) => {
+        callCounts.processData++
+        executionOrder.push('step3')
+        const result = options.data.map(item => ({ ...item, processed: true }))
+        results.step3 = result
+        return result
+      },
+      checkNotEmpty: async (options: { data: any[] }) => {
+        callCounts.checkNotEmpty++
+        executionOrder.push('step4')
+        // 返回false，测试不执行step6和step7的情况
+        return false
+      },
+      furtherProcess: async (options: { data: any[] }) => {
+        callCounts.furtherProcess++
+        executionOrder.push('step5')
+        const result = options.data.map(item => ({ ...item, furtherProcessed: true }))
+        results.step5 = result
+        return result
+      },
+      processEmpty: async (options: { data: any[] }) => {
+        callCounts.processEmpty++
+        executionOrder.push('step6')
+        const result = options.data.map(item => ({ ...item, emptyProcessed: true }))
+        results.step6 = result
+        return result
+      },
+      combineResults: async (options: { message: string, data: any[] }) => {
+        callCounts.combineResults++
+        executionOrder.push('step7')
+        return {
+          message: options.message,
+          originalData: options.data,
+          executionPath: executionOrder.join(' -> ')
+        }
+      }
+    }
+
+    const history = await workflow.run({ actions, entry: "step1" })
+    const lastRecord = history[history.length - 1]
+
+    // 验证执行状态
+    expect(lastRecord.status).toBe('success')
+    
+    // 验证执行顺序
+    expect(executionOrder).toEqual([
+      'step1', 'step2', 'step4'
+    ])
+    
+    // 验证函数调用次数
+    expect(callCounts.generateData).toBe(1)
+    expect(callCounts.checkLength).toBe(1)
+    expect(callCounts.checkNotEmpty).toBe(1)
+    expect(callCounts.processEmpty).toBe(0)
+    expect(callCounts.combineResults).toBe(0)
+    expect(callCounts.processData).toBe(0)
+    expect(callCounts.furtherProcess).toBe(0)
+    
+    // 验证步骤执行状态
+    expect(lastRecord.steps['step1'].status).toBe('success')
+    expect(lastRecord.steps['step2'].status).toBe('success')
+    expect(lastRecord.steps['step4'].status).toBe('success')
+    expect(lastRecord.steps.hasOwnProperty('step3')).toBe(false)
+    expect(lastRecord.steps.hasOwnProperty('step5')).toBe(false)
+    expect(lastRecord.steps.hasOwnProperty('step6')).toBe(false)
+    expect(lastRecord.steps.hasOwnProperty('step7')).toBe(false)
   })
 }) 
