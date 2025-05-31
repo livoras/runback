@@ -52,11 +52,11 @@ describe('Workflow History', () => {
     const finalContext = history[0]
     
     // Verify final context contains all expected data
-    expect(finalContext.getUser).toBeDefined()
-    expect(finalContext.getUser.name).toBe('testUser')
-    expect(finalContext['checkAccess.true']).toBe(true)
-    expect(finalContext.logAccess).toBe('access_logged')
-    expect(finalContext.fetchData).toEqual(['data1', 'data2'])
+    expect(finalContext.context.getUser).toBeDefined()
+    expect(finalContext.context.getUser.name).toBe('testUser')
+    expect(finalContext.context['checkAccess.true']).toBe(true)
+    expect(finalContext.context.logAccess).toBe('access_logged')
+    expect(finalContext.context.fetchData).toEqual(['data1', 'data2'])
     
     // Verify mock functions were called correctly
     expect(mockActions.getUserInfo).toHaveBeenCalled()
@@ -90,8 +90,8 @@ describe('Workflow History', () => {
     // Should return the history array with one entry
     expect(result).toBe(history)
     expect(history).toHaveLength(1)
-    expect(history[0].getUser).toBeDefined()
-    expect(history[0].fetchData).toEqual(['data1', 'data2'])
+    expect(history[0].context.getUser).toBeDefined()
+    expect(history[0].context.fetchData).toEqual(['data1', 'data2'])
   })
 
   it('should work with each steps', async () => {
@@ -128,7 +128,7 @@ describe('Workflow History', () => {
     // Verify final context contains processed items
     expect(history).toHaveLength(1)
     // Verify the results are stored in the context
-    expect(history[0].processItems).toEqual([
+    expect(history[0].context.processItems).toEqual([
       'processed_$item',
       'processed_$item'
     ])
@@ -153,8 +153,8 @@ describe('Workflow History', () => {
     // Should return the history array with one entry when no history option is provided
     expect(Array.isArray(result)).toBe(true)
     expect(result).toHaveLength(1)
-    expect(result[0].getUser).toBeDefined()
-    expect(result[0].getUser.name).toBe('testUser')
+    expect(result[0].context.getUser).toBeDefined()
+    expect(result[0].context.getUser.name).toBe('testUser')
   })
 
   it('should correctly append to history when run multiple times', async () => {
@@ -181,8 +181,8 @@ describe('Workflow History', () => {
     // Verify first run results
     expect(result1).toBe(history)
     expect(history).toHaveLength(1)
-    expect(history[0].getUser).toBeDefined()
-    expect(history[0].fetchData).toEqual(['data1', 'data2'])
+    expect(history[0].context.getUser).toBeDefined()
+    expect(history[0].context.fetchData).toEqual(['data1', 'data2'])
     
     // Update mock to return different data
     mockActions.getUserInfo.mockResolvedValueOnce({ name: 'anotherUser', role: 'user' })
@@ -200,12 +200,12 @@ describe('Workflow History', () => {
     expect(history).toHaveLength(2) // Should have two entries now
     
     // First entry should remain unchanged
-    expect(history[0].getUser.name).toBe('testUser')
-    expect(history[0].fetchData).toEqual(['data1', 'data2'])
+    expect(history[0].context.getUser.name).toBe('testUser')
+    expect(history[0].context.fetchData).toEqual(['data1', 'data2'])
     
     // Second entry should have new data
-    expect(history[1].getUser.name).toBe('anotherUser')
-    expect(history[1].fetchData).toEqual(['data3', 'data4'])
+    expect(history[1].context.getUser.name).toBe('anotherUser')
+    expect(history[1].context.fetchData).toEqual(['data3', 'data4'])
     
     // Verify mock calls
     expect(mockActions.getUserInfo).toHaveBeenCalledTimes(2)
@@ -255,13 +255,13 @@ describe('Workflow History', () => {
       
       // Verify the latest history entry
       const latest = history[history.length - 1]
-      expect(latest.counter).toBe(counterValue)
-      expect(latest.process).toBe(processedValue)
+      expect(latest.context.counter).toBe(counterValue)
+      expect(latest.context.process).toBe(processedValue)
       
       // Verify all previous history entries are unchanged
       for (let j = 0; j < i; j++) {
-        expect(history[j].counter).toBe(j + 1)
-        expect(history[j].process).toBe(`processed_${j + 1}`)
+        expect(history[j].context.counter).toBe(j + 1)
+        expect(history[j].context.process).toBe(`processed_${j + 1}`)
       }
     }
     
@@ -271,7 +271,7 @@ describe('Workflow History', () => {
     
     // Verify final history state
     expect(history).toHaveLength(runCount)
-    expect(history[runCount - 1].counter).toBe(runCount)
-    expect(history[runCount - 1].process).toBe(`processed_${runCount}`)
+    expect(history[runCount - 1].context.counter).toBe(runCount)
+    expect(history[runCount - 1].context.process).toBe(`processed_${runCount}`)
   })
 })

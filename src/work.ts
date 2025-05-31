@@ -1,6 +1,7 @@
 import { collect, collectFromRefString, inject } from "./ref"
 import { createProxy } from "./createProxy"
 import { Logger, LogLevel, createDefaultLogger } from "./logger"
+import { v4 as uuidv4 } from 'uuid';
 
 export type Step = {
   id: string,
@@ -16,9 +17,11 @@ export type WorkflowOptions = {
   steps: Step[],
 }
 
+export type RunStatus = 'running' | 'failed' | 'success' | "aborted" | "pending"
+
 export type RunOptions = {
   actions?: Record<string, Function>,
-  history?: any[], // 执行记录数组
+  history?: RunHistoryRecord[], // 执行记录数组
   useHisotry?: boolean,
   onlyRuns?: string[],
   entry?: string,
@@ -32,7 +35,7 @@ interface StepExecutionRecord {
   startTime: string;      // ISO格式开始时间
   endTime: string;        // ISO格式结束时间
   duration: number;       // 执行时长(毫秒)
-  status: 'success' | 'failed' | 'skipped'; // 执行状态
+  status: RunStatus;
   options?: Record<string, any>; // 步骤配置选项（来自step.options）
   inputs: any;            // 输入参数（来自runOptions）
   outputs?: any;          // 输出结果
@@ -49,12 +52,42 @@ interface RunHistoryRecord {
   startTime: string;      // 工作流开始时间
   endTime: string;        // 工作流结束时间
   duration: number;       // 总执行时长
-  status: 'completed' | 'failed' | 'partial'; // 最终状态
+  status: RunStatus;
   steps: { [stepId: string]: StepExecutionRecord }; // 步骤记录映射
   context: any;           // 最终上下文快照
+  error?: {               // 错误信息(如果执行失败)
+    message: string;
+    stack?: string;
+  };
 }
 
 type WorkflowHistory = RunHistoryRecord[];
+
+const createRunningRecord = (): RunHistoryRecord => {
+  return {
+    runId: uuidv4(),
+    startTime: new Date().toISOString(),
+    endTime: '',
+    duration: 0,
+    status: 'running',
+    steps: {},
+    context: {},
+  }
+}
+
+const markRecordSuccess = (record: RunHistoryRecord, ctx: any) => {
+  record.endTime = new Date().toISOString()
+  record.duration = new Date(record.endTime).getTime() - new Date(record.startTime).getTime()
+  record.status = "success"
+  record.context = ctx
+}
+
+const markRecordFailed = (record: RunHistoryRecord, error: Error) => {
+  record.endTime = new Date().toISOString()
+  record.duration = new Date(record.endTime).getTime() - new Date(record.startTime).getTime()
+  record.status = "failed"
+  record.error = error
+}
 
 /**
  * 深拷贝对象
@@ -147,31 +180,38 @@ export class Workflow {
       this.logger.setLevel(options.logLevel)
     }
     
-    // 初始化执行记录数组
+    const record = createRunningRecord()
     const history = options?.history || []
-    
-    let setKeys: Set<string> = new Set()
-    let ctx = this.createContext(setKeys)
-    
-    this.logger.info('Starting workflow execution')
-    
-    while (stepsNotRun.length > 0) {
-      const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys)
-      if (readySteps.length === 0) {
-        this.logger.info('No runnable steps, workflow execution completed')
-        break
+    try {
+    // 初始化执行记录数组
+      
+      let setKeys: Set<string> = new Set()
+      let ctx = this.createContext(setKeys)
+      
+      this.logger.info('Starting workflow execution')
+      
+      while (stepsNotRun.length > 0) {
+        const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys)
+        if (readySteps.length === 0) {
+          this.logger.info('No runnable steps, workflow execution completed')
+          break
+        }
+        
+        this.logger.debug('\n--------------------------------')
+        this.logger.info(`Preparing to execute ${readySteps.length} step(s)`, readySteps.map(s => s.id))
+        
+        await Promise.all(readySteps.map(step => 
+          this.executeStep(step, options, ctx, stepsNotRun, stepsRun)
+        ))
       }
-      
-      this.logger.debug('\n--------------------------------')
-      this.logger.info(`Preparing to execute ${readySteps.length} step(s)`, readySteps.map(s => s.id))
-      
-      await Promise.all(readySteps.map(step => 
-        this.executeStep(step, options, ctx, stepsNotRun, stepsRun)
-      ))
+      markRecordSuccess(record, ctx)
+    } catch (error) {
+      markRecordFailed(record, error as Error)
+      throw error
     }
     
     // 将最终的上下文状态添加到执行记录中
-    history.push(clone(ctx))
+    history.push(clone(record))
     
     this.logger.info('Workflow execution completed')
     return history
