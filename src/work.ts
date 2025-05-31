@@ -30,8 +30,7 @@ export type RunOptions = {
 
 // 步骤执行记录
 interface StepExecutionRecord {
-  id: string;             // 步骤唯一ID
-  action: string;         // 执行的操作名
+  step: Step;
   startTime: string;      // ISO格式开始时间
   endTime: string;        // ISO格式结束时间
   duration: number;       // 执行时长(毫秒)
@@ -83,6 +82,38 @@ const markRecordSuccess = (record: RunHistoryRecord, ctx: any) => {
 }
 
 const markRecordFailed = (record: RunHistoryRecord, error: Error) => {
+  record.endTime = new Date().toISOString()
+  record.duration = new Date(record.endTime).getTime() - new Date(record.startTime).getTime()
+  record.status = "failed"
+  record.error = {
+    message: error.message,
+    stack: error.stack
+  }
+}
+
+const createRunningStepRecord = (step: Step, ctx: any): StepExecutionRecord => {
+  return {
+    step,
+    startTime: new Date().toISOString(),
+    endTime: '',
+    duration: 0,
+    status: 'running',
+    options: step.options,
+    inputs: null,
+    outputs: undefined,
+    error: undefined,
+    context: clone(ctx),
+  }
+}
+
+const markStepSuccess = (record: StepExecutionRecord, result: any) => {
+  record.endTime = new Date().toISOString()
+  record.duration = new Date(record.endTime).getTime() - new Date(record.startTime).getTime()
+  record.status = "success"
+  record.outputs = result
+}
+
+const markStepFailed = (record: StepExecutionRecord, error: Error) => {
   record.endTime = new Date().toISOString()
   record.duration = new Date(record.endTime).getTime() - new Date(record.startTime).getTime()
   record.status = "failed"
@@ -203,7 +234,7 @@ export class Workflow {
         this.logger.info(`Preparing to execute ${readySteps.length} step(s)`, readySteps.map(s => s.id))
         
         await Promise.all(readySteps.map(step => 
-          this.executeStep(step, options, ctx, stepsNotRun, stepsRun)
+          this.executeStep(step, options, ctx, stepsNotRun, stepsRun, record)
         ))
       }
       markRecordSuccess(record, ctx)
@@ -226,40 +257,49 @@ export class Workflow {
     })
   }
   
-  private async executeStep(step: Step, options: RunOptions | undefined, ctx: any, stepsNotRun: Step[], stepsRun: Step[]) {
+  private async executeStep(step: Step, options: RunOptions | undefined, ctx: any, stepsNotRun: Step[], stepsRun: Step[], record: RunHistoryRecord) {
     this.logger.info(`Executing step: ${step.id}`, { action: step.action, type: step.type })
+
+    const stepRecord = createRunningStepRecord(step, ctx)
+    record.steps[step.id] = stepRecord
     
     const action = options?.actions?.[step.action]
     if (!action) {
       const errorMsg = `Action not found: ${step.action}`
       this.logger.error(errorMsg)
-      throw new Error(errorMsg)
+      markStepFailed(stepRecord, new Error(errorMsg))
+      throw new Error(errorMsg) 
     }
-    
+
     try {
       if (step.each) {
-        await this.executeEachStep(step, action, ctx)
+        await this.executeEachStep(step, action, ctx, stepRecord)
       } else {
-        await this.executeNormalStep(step, action, ctx)
+        await this.executeNormalStep(step, action, ctx, stepRecord)
       }
       
       this.moveStepToRun(step, stepsNotRun, stepsRun)
       this.logger.info(`Step ${step.id} execution completed`)
+      markStepSuccess(stepRecord, stepRecord.outputs)
     } catch (error) {
       this.logger.error(`Step ${step.id} execution failed`, error)
+      markStepFailed(stepRecord, error as Error)
       throw error
     }
   }
   
-  private async executeNormalStep(step: Step, action: Function, ctx: any) {
+  private async executeNormalStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord) {
     this.logger.debug(`Preparing to execute normal step: ${step.id}`)
-    
     const actionOption = this.prepareActionOptions(step, ctx)
     this.logger.debug(`Options for step ${step.id}`, actionOption)
+
+    stepRecord.inputs = actionOption
     
     const result = actionOption ? await action(actionOption) : await action()
     this.logger.debug(`Result of step ${step.id}`, result)
-    
+
+    stepRecord.outputs = result
+
     if (step.type === 'if') {
       const branch = result ? 'true' : 'false'
       ctx[`${step.id}.${branch}`] = true
@@ -271,7 +311,7 @@ export class Workflow {
     return result
   }
   
-  private async executeEachStep(step: Step, action: Function, ctx: any) {
+  private async executeEachStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord) {
     this.logger.debug(`Preparing to execute iteration step: ${step.id}`)
     
     const each = step.each!.replace("$ref.", '')
@@ -284,11 +324,17 @@ export class Workflow {
     }
     
     this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list.length })
+
+    const inputs: any = []
+    stepRecord.inputs = inputs
     
     const results: any[] = []
+    stepRecord.outputs = results
+
     await Promise.all(list.map(async (item: any, index: number) => {
       this.logger.debug(`Executing item ${index} of iteration step ${step.id}`)
       const itemOptions = this.prepareEachItemOptions(step, ctx, item, index)
+      inputs.push(itemOptions)
       const result = itemOptions ? await action(itemOptions) : await action()
       this.logger.debug(`Result of item ${index} for iteration step ${step.id}`, result)
       results.push(result)
@@ -376,4 +422,46 @@ export class Workflow {
   json() {
     // TODO
   }
+}
+
+if (require.main === module) {
+  (async () => {
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "step1", options: { name: "jerry" } },
+        { id: "step2", action: "step2", options: { user: "$ref.step1" } },
+      ]
+    })
+    const actions = {
+      step1: async () => {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return { name: "jerry" }
+      },
+      step2: (options: { user: any }) => {
+        return { userName: options.user.name }
+      }
+    }
+      const history = await workflow.run({ actions, entry: "step1" })
+      console.dir(history, { depth: null, colors: true })
+  })();
+
+  (async () => {
+    const workflow = new Workflow({
+      steps: [
+        { id: "step1", action: "step1" },
+        { id: "step2", action: "step2", each: "$ref.step1", options: { user: "$ref.$item" } },
+      ]
+    })
+    const actions = {
+      step1: () => {
+        return [{ name: "jerry" }, { name: "tom" }]
+      },
+      step2: async (options: { user: any }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return { userName: options.user.name }
+      }
+    }
+      const history = await workflow.run({ actions, entry: "step1" })
+      console.dir(history, { depth: null, colors: true })
+  })();
 }
