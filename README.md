@@ -228,13 +228,12 @@ await work.run({
 
 ### 3. 指定步骤运行
 
-使用 `onlyRuns` 模式可以指定只运行特定的步骤。如果这些步骤依赖其他步骤的数据，系统会自动从历史记录中加载。
+使用 `onlyRuns` 模式可以直接指定要运行的步骤，不需要指定入口步骤。如果这些步骤依赖其他步骤的数据，系统会自动从历史记录中加载。
 
 ```typescript
 // 只运行特定的步骤
 await work.run({ 
-  entry: 'step1',
-  onlyRuns: ['processData', 'generateReport']  // 只运行这两个步骤
+  onlyRuns: ['processData', 'generateReport']  // 直接指定要运行的步骤
 });
 ```
 
