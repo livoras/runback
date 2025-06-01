@@ -1,11 +1,9 @@
-# Runback
-
 <p align="center">
   <img src="images/runback-cropped.png" alt="Runback Logo" height="200">
 </p>
 
 <p align="center">
-  <strong>渐进式工作流框架</strong>
+  <strong>Runback·渐进式工作流框架</strong>
 </p>
 
 <p align="center">
