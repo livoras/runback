@@ -25,6 +25,7 @@ export type RunOptions = {
   // useHisotry?: boolean,
   onlyRuns?: string[],
   entry?: string,
+  exit?: string,
   logLevel?: LogLevel,
   resume?: boolean,
   entryOptions?: any, // to cover the entry steps options
@@ -305,6 +306,12 @@ export class Workflow {
         await Promise.all(readySteps.map(step => 
           this.executeStep(step, options, ctx, stepsNotRun, stepsRun, record)
         ))
+
+        // 检查是否执行了 exit 节点
+        if (options?.exit && stepsRun.some(step => step.id === options.exit)) {
+          this.logger.info(`Exit node ${options.exit} executed, stopping workflow execution`)
+          break;
+        }
       }
       markRecordSuccess(record, ctx)
     } catch (error) {

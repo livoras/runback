@@ -3,8 +3,8 @@ import { RunHistoryRecord, RunOptions, Step, Workflow, WorkflowOptions } from ".
 import fs from 'fs-extra'
 
 export class Work {
+  public lastRun: RunHistoryRecord | null = null
   private steps: Step[] = []
-  private lastRun: RunHistoryRecord | null = null
   private stepsMap: Record<string, Step> = {}
 
   constructor(public actions?: Record<string, Function>, public savePath?: string) { }
