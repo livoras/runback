@@ -108,7 +108,7 @@ const work = new Work(actions, 'user-workflow.json');
 await work.load();
 
 // 执行整个工作流，指定入口步骤和参数
-const history = await work.run({ 
+await work.run({ 
   entry: 'step1', 
   entryOptions: { userId: '124' }  // 动态传入参数，会覆盖 step1 中的固定参数
 });
@@ -505,8 +505,11 @@ await work.step({
   }
 }, false);
 
-// 一次性执行所有步骤
-const history = await work.run({ actions: work.actions });
+// 一次性执行所有步骤，必须指定入口步骤
+await work.run({ 
+  entry: 'getData',  // 指定入口步骤
+  actions: work.actions 
+});
 ```
 
 ## API参考
