@@ -11,9 +11,14 @@
 在传统工作流系统中，通常需要预先定义整个工作流，然后一次性执行。而渐进式构建工作流允许你按需添加和执行步骤，这带来了极大的灵活性。
 
 **核心机制**：
-- 通过 `work.step()` 方法添加并立即执行单个步骤
+- 通过 `work.step()` 方法添加并选择性地执行单个步骤
 - 每个步骤有唯一的ID，可以独立执行
 - 步骤执行后会更新工作流状态
+- 可以通过 `run` 参数控制是否立即执行步骤
+
+**两种工作流构建模式**：
+- **渐进式构建模式**：通过 `work.step(step, true)` 添加步骤并立即执行，这样可以一步一步地构建和执行工作流，每一步都会立即产生结果，可以根据当前结果决定下一步操作。
+- **编排构建模式**：通过 `work.step(step, false)` 添加步骤但不立即执行，这样可以先定义整个工作流的结构，然后再通过 `work.run()` 一次性执行所有步骤。
 
 **示例**：
 
@@ -26,22 +31,32 @@ const work = new Work({
   }
 }, 'workflow-state.json');
 
-// 添加并执行第一个步骤
+// 渐进式构建模式：添加并立即执行第一个步骤
 await work.step({
   id: 'getData',
   action: 'fetchData',
   options: { source: 'api' }
-});
+}, true); // 第二个参数 true 表示立即执行（默认行为）
 
 // 此时可以暂停，稍后再继续添加步骤
 // ...
 
-// 稍后再添加并执行下一个步骤
+// 渐进式构建模式：稍后再添加并立即执行下一个步骤
 await work.step({
   id: 'processData',
   action: 'processUsers',
   options: { data: '$ref.getData.users' }
-});
+}, true); // 第二个参数 true 表示立即执行（默认行为）
+
+// 编排构建模式：只添加步骤但不立即执行
+await work.step({
+  id: 'saveData',
+  action: 'saveToDatabase',
+  options: { data: '$ref.processData.result' }
+}, false); // 第二个参数 false 表示不立即执行
+
+// 之后可以通过 run 方法一次性执行所有步骤
+const history = await work.run({ actions: work.actions });
 ```
 
 ### 2. 每个步骤的结果会保存下来，供后续步骤引用
@@ -238,7 +253,7 @@ class Work {
   constructor(actions?: Record<string, Function>, savePath?: string);
   
   // 核心方法
-  async step(step: Step): Promise<any>;  // 执行单个步骤
+  async step(step: Step, run: boolean = true): Promise<any>;  // 添加单个步骤，并可选择是否立即执行
   async run(options: RunOptions): Promise<RunHistoryRecord[]>;  // 执行整个工作流
   
   // 状态管理
