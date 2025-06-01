@@ -42,7 +42,7 @@ npm install runback
 
 ## 快速开始
 
-**1. 第一个地方：创建并添加初始步骤**
+**1. 第一步：创建并添加初始步骤**
 ```typescript
 // 定义动作
 const actions = {
@@ -79,7 +79,7 @@ await work.step({
 });
 ```
 
-**2. 第二个地方：继续构建工作流**
+**2. 第二步：继续构建工作流**
 ```typescript
 // 加载之前的工作流
 const work = new Work(actions, 'user-workflow.json');
@@ -100,7 +100,7 @@ await work.step({
 });
 ```
 
-**3. 第三个地方：执行工作流**
+**3. 第三步：执行工作流**
 ```typescript
 // 加载完整的工作流
 const work = new Work(actions, 'user-workflow.json');

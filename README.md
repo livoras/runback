@@ -40,7 +40,7 @@ npm install runback
 
 ## Quick Start
 
-**1. First Location: Create and Add Initial Steps**
+**1. Step One: Create and Add Initial Steps**
 ```typescript
 // Define actions
 const actions = {
@@ -77,7 +77,7 @@ await work.step({
 });
 ```
 
-**2. Second Location: Continue Building the Workflow**
+**2. Step Two: Continue Building the Workflow**
 ```typescript
 // Load previous workflow
 const work = new Work(actions, 'user-workflow.json');
@@ -98,7 +98,7 @@ await work.step({
 });
 ```
 
-**3. Third Location: Execute the Workflow**
+**3. Step Three: Execute the Workflow**
 ```typescript
 // Load complete workflow
 const work = new Work(actions, 'user-workflow.json');
