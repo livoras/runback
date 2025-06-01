@@ -333,7 +333,67 @@ await work.run({ entry: 'getUser' });
    - `checkPermission.false` 表示在条件为 false 时执行
 4. 工作流会根据条件自动选择执行路径
 
-### 2. 数组处理（each）
+### 2. 分支汇聚
+
+在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚，例如 `$ref.step1.result,$ref.step2.result`
+
+```typescript
+// 1. 获取用户信息
+await work.step({
+  id: 'getUser',
+  action: 'fetchUser',
+  options: { userId: '123' }
+});
+
+// 2. 检查用户状态（条件步骤）
+await work.step({
+  id: 'checkStatus',
+  action: 'checkUserStatus',
+  options: { user: '$ref.getUser.user' },
+  type: 'if'  // 标记为条件步骤
+});
+
+// 3. 根据不同状态执行不同操作
+await work.step({
+  id: 'processActiveUser',
+  action: 'processActiveUser',
+  options: { user: '$ref.getUser.user' },
+  depends: ['checkStatus.true']  // 用户活跃时执行
+});
+
+await work.step({
+  id: 'sendWelcomeBack',
+  action: 'sendWelcomeBack',
+  options: { user: '$ref.getUser.user' },
+  depends: ['checkStatus.false']  // 用户不活跃时执行
+});
+
+// 4. 分支汇聚 - 无论用户是否活跃，都执行这个步骤
+await work.step({
+  id: 'logUserActivity',
+  action: 'logActivity',
+  options: { 
+    userId: '$ref.getUser.user.id',
+    timestamp: new Date().toISOString()
+  },
+  depends: ['processActiveUser', 'sendWelcomeBack']  // 任意一个前置步骤完成后执行
+});
+
+// 5. 继续后续处理
+await work.step({
+  id: 'continueProcessing',
+  action: 'continueWorkflow',
+  options: {},
+  depends: ['logUserActivity']  // 等待日志记录完成
+});
+```
+
+在这个例子中：
+1. `logUserActivity` 步骤会在 `processActiveUser` 或 `sendWelcomeBack` 任意一个步骤完成后执行
+2. 通过逗号分隔多个依赖路径，实现分支汇聚的逻辑
+3. 这种方式可以灵活地处理并行或条件分支的汇聚场景
+
+### 3. 数组处理（each）
 
 Runback 支持通过 `each` 属性对数组数据进行迭代处理。在迭代步骤中，可以使用 `$ref.$item` 引用当前迭代项，使用 `$ref.$index` 引用当前索引。
 
@@ -492,7 +552,7 @@ await work.run({ entry: 'getData' });
 
 ### 4. 分支汇聚
 
-在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚。当使用逗号分隔多个引用时，系统会尝试按顺序获取这些值，返回第一个成功获取到的值。这个特性在处理条件分支的结果汇聚时特别有用。
+在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚，例如 `$ref.step1.result,$ref.step2.result`
 
 ```typescript
 // 定义动作
