@@ -548,9 +548,9 @@ await work.run({ entry: 'getData' });
 3. 当 `processA` 和 `processB` 都完成后，`combine` 步骤会自动执行
 4. 整个过程不需要手动处理并行和合并逻辑
 
-### 4. 分支汇聚
+### 4. 分支合并
 
-在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚，例如 `$ref.step1.result,$ref.step2.result`
+在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚。当使用条件分支（if）时，只会执行满足条件的分支，而合并节点会在任意一个分支完成时触发，不需要等待所有分支都完成。
 
 ```typescript
 // 定义动作
@@ -588,27 +588,28 @@ await work.step({
   type: 'if'
 });
 
-// 2. 根据用户类型处理（两个分支）
+// 2. 根据用户类型处理（两个分支，只会执行其中一个）
 await work.step({
   id: 'processAdmin',
   action: 'processAdmin',
   options: {},
-  depends: ['checkUser.true']
+  depends: ['checkUser.true']  // 只有 checkUser 返回 true 时才会执行
 });
 
 await work.step({
   id: 'processNormalUser',
   action: 'processNormalUser',
   options: {},
-  depends: ['checkUser.false']
+  depends: ['checkUser.false']  // 只有 checkUser 返回 false 时才会执行
 });
 
-// 3. 合并分支结果
+// 3. 合并分支结果 - 任意一个分支完成就会触发
 await work.step({
   id: 'mergeResult',
   action: 'mergeResult',
   options: {
     // 使用逗号分隔的引用，系统会返回第一个成功获取到的值
+    // 由于条件分支只会执行其中一个，所以这里会获取到实际执行的那个分支的结果
     result: '$ref.processAdmin.message,$ref.processNormalUser.message'
   }
 });
@@ -619,12 +620,14 @@ await work.run({ entry: 'checkUser' });
 
 在这个例子中：
 1. `checkUser` 步骤根据用户ID返回 true/false
-2. 根据条件结果，会执行 `processAdmin` 或 `processNormalUser` 其中一个步骤
+2. 根据条件结果，只会执行 `processAdmin` 或 `processNormalUser` 其中一个步骤：
+   - 如果用户是管理员（checkUser 返回 true），只会执行 processAdmin
+   - 如果用户是普通用户（checkUser 返回 false），只会执行 processNormalUser
 3. `mergeResult` 步骤使用逗号分隔的引用：
    - `$ref.processAdmin.message,$ref.processNormalUser.message`
-   - 如果用户是管理员，会获取到 `processAdmin.message` 的值
-   - 如果用户是普通用户，会获取到 `processNormalUser.message` 的值
-4. 系统会自动处理分支汇聚，不需要手动判断哪个分支被执行
+   - 由于条件分支只会执行其中一个，所以这里会获取到实际执行的那个分支的结果
+   - 合并节点不关心是哪个分支触发的，只要任意一个分支完成就会执行
+4. 重要特性：条件分支只会执行其中一个，而合并节点在任意分支完成时都会触发
 
 ## API参考
 

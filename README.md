@@ -548,7 +548,7 @@ In this example:
 
 ### 5. Branch Merge
 
-In conditional branching scenarios, Runback supports branch merging via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
+In conditional branching scenarios, Runback supports branch merging via comma-separated reference paths. When using conditional branches (if), only the branch that satisfies the condition will be executed, and the merge node will trigger when any branch completes, without waiting for all branches to complete.
 
 ```typescript
 // Define actions
@@ -586,27 +586,28 @@ await work.step({
   type: 'if'
 });
 
-// 2. Process based on user type (two branches)
+// 2. Process based on user type (two branches, only one will execute)
 await work.step({
   id: 'processAdmin',
   action: 'processAdmin',
   options: {},
-  depends: ['checkUser.true']
+  depends: ['checkUser.true']  // Only executes when checkUser returns true
 });
 
 await work.step({
   id: 'processNormalUser',
   action: 'processNormalUser',
   options: {},
-  depends: ['checkUser.false']
+  depends: ['checkUser.false']  // Only executes when checkUser returns false
 });
 
-// 3. Merge branch results
+// 3. Merge branch results - triggers when any branch completes
 await work.step({
   id: 'mergeResult',
   action: 'mergeResult',
   options: {
-    // Use comma-separated references, system returns first successfully retrieved value
+    // Use comma-separated references, system returns the result from the executed branch
+    // Since only one branch will execute, this will get the result from that branch
     result: '$ref.processAdmin.message,$ref.processNormalUser.message'
   }
 });
@@ -617,12 +618,14 @@ await work.run({ entry: 'checkUser' });
 
 In this example:
 1. `checkUser` step returns true/false based on user ID
-2. Based on condition result, either `processAdmin` or `processNormalUser` executes
+2. Based on condition result, only one of `processAdmin` or `processNormalUser` will execute:
+   - If user is admin (checkUser returns true), only processAdmin will execute
+   - If user is normal (checkUser returns false), only processNormalUser will execute
 3. `mergeResult` step uses comma-separated references:
    - `$ref.processAdmin.message,$ref.processNormalUser.message`
-   - If user is admin, gets value from `processAdmin.message`
-   - If user is normal, gets value from `processNormalUser.message`
-4. System automatically handles branch merging without manual branch execution checking
+   - Since only one branch will execute, this will get the result from that branch
+   - The merge node doesn't care which branch triggered it, it executes as soon as any branch completes
+4. Key features: Only one conditional branch executes, and the merge node triggers when any branch completes
 
 ## API Reference
 
