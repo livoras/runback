@@ -3,55 +3,53 @@
 </p>
 
 <p align="center">
-  <strong>Runback·渐进式工作流框架</strong>
+  <strong>Runback·Progressive Workflow Framework</strong>
 </p>
 
 <p align="center">
-  <a href="#特性">特性</a> •
-  <a href="#安装">安装</a> •
-  <a href="#快速开始">快速开始</a> •
-  <a href="#工作流构建模式">工作流构建模式</a> •
-  <a href="#运行工作流">运行工作流</a> •
-  <a href="#控制流">控制流</a> •
-  <a href="#api参考">API参考</a>
+  <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#workflow-building-patterns">Workflow Building Patterns</a> •
+  <a href="#running-workflows">Running Workflows</a> •
+  <a href="#control-flow">Control Flow</a> •
+  <a href="#api-reference">API Reference</a> •
+  <a href="README.zh-CN.md">中文文档</a>
 </p>
 
 <div align="center">
 
   ![CI](https://github.com/livoras/runback/actions/workflows/ci-test.yml/badge.svg)
   ![GitHub last commit](https://img.shields.io/github/last-commit/livoras/confow)
-  <!-- ![Node.js Version](https://img.shields.io/badge/node-%3E%3D%2022-green)
-  ![Electron Version](https://img.shields.io/badge/electron-%3E%3D%2035-green) -->
-  <!-- ![npm Version](https://img.shields.io/badge/npm-%3E%3D%208-red) -->
   
 </div>
 
-## 简介
+## Introduction
 
-Runback 是一个渐进式工作流框架，其核心理念是"**结果即流程**"。
+Runback is a progressive workflow framework built around the core concept of "**result as process**".
 
-与传统工作流系统需要预先定义整个流程不同，Runback 允许开发者从任意结果反推工作流。框架会自动记录每个动作（action）的运行结果，你可以随时基于感兴趣的结果进行下一步操作。当你得到想要的结果时，工作流的编排也自动完成了。
+Unlike traditional workflow systems that require pre-defining entire processes, Runback allows developers to build workflows by working backwards from any desired result. The framework automatically records the results of each action, enabling you to proceed with next steps based on any interesting outcomes. When you achieve your desired result, the workflow orchestration is automatically completed.
 
-这种工作方式让你不需要过于关注编排本身，而是关注感兴趣的任意结果，以一种充满创造性的方式逐步构建流程。
+This approach lets you focus less on orchestration itself and more on any interesting results, building your process in a creative, step-by-step manner.
 
-## 安装
+## Installation
 
 ```bash
 npm install runback
 ```
 
-## 快速开始
+## Quick Start
 
-**1. 第一个地方：创建并添加初始步骤**
+**1. First Location: Create and Add Initial Steps**
 ```typescript
-// 定义动作
+// Define actions
 const actions = {
   'fetchUser': async (options) => {
-    // 模拟从API获取用户数据
+    // Simulate fetching user data from API
     return { user: { id: options.userId, name: "John Doe" } };
   },
   'processUser': async (options) => {
-    // 处理用户数据
+    // Process user data
     return { 
       processed: {
         ...options.user,
@@ -61,112 +59,112 @@ const actions = {
     };
   },
   'generateReport': async (options) => {
-    // 生成报告
+    // Generate report
     return {
       report: `User ${options.processed.name} processed at ${options.processed.timestamp}`
     };
   }
 };
 
-// 创建并添加初始步骤
+// Create and add initial steps
 const work = new Work(actions, 'user-workflow.json');
-await work.load(); // 加载历史记录（如果有的话）
+await work.load(); // Load history (if any)
 
 await work.step({
   id: 'step1',
   action: 'fetchUser',
-  options: { userId: '123' }  // 使用固定参数
+  options: { userId: '123' }  // Use fixed parameters
 });
 ```
 
-**2. 第二个地方：继续构建工作流**
+**2. Second Location: Continue Building the Workflow**
 ```typescript
-// 加载之前的工作流
+// Load previous workflow
 const work = new Work(actions, 'user-workflow.json');
-await work.load(); // 加载包含 step1 步骤的工作流
+await work.load(); // Load workflow containing step1
 
-// 添加处理步骤
+// Add processing step
 await work.step({
   id: 'processUser',
   action: 'processUser',
-  options: { user: '$ref.step1.user' }  // 引用上一步的结果
+  options: { user: '$ref.step1.user' }  // Reference result from previous step
 });
 
-// 添加报告生成步骤
+// Add report generation step
 await work.step({
   id: 'createReport',
   action: 'generateReport',
-  options: { processed: '$ref.processUser.processed' }  // 引用上一步的结果
+  options: { processed: '$ref.processUser.processed' }  // Reference result from previous step
 });
 ```
 
-**3. 第三个地方：执行工作流**
+**3. Third Location: Execute the Workflow**
 ```typescript
-// 加载完整的工作流
+// Load complete workflow
 const work = new Work(actions, 'user-workflow.json');
 await work.load();
 
-// 执行整个工作流，指定入口步骤和参数
+// Execute entire workflow, specifying entry step and parameters
 await work.run({ 
   entry: 'step1', 
-  entryOptions: { userId: '124' }  // 动态传入参数，会覆盖 step1 中的固定参数
+  entryOptions: { userId: '124' }  // Dynamically pass parameters, will override fixed parameters in step1
 });
 ```
 
-这个示例展示了 Runback 的核心特性：
-1. 可以在不同地方逐步构建工作流
-2. 每个步骤的结果可以被后续步骤引用
-3. 工作流状态会自动保存到文件
-4. 可以通过 `work.run()` 动态指定入口步骤和参数
+This example demonstrates Runback's core features:
+1. Build workflows incrementally in different locations
+2. Reference results from previous steps in subsequent steps
+3. Automatic workflow state persistence to file
+4. Dynamic entry step and parameter specification via `work.run()`
 
-## 特性
+## Features
 
-### 1. 渐进式构建与执行
+### 1. Progressive Building and Execution
 
-在传统工作流系统中，通常需要预先定义整个工作流，然后一次性执行。而 Runback 允许你按需添加和执行步骤，这带来了极大的灵活性。
+Unlike traditional workflow systems that typically require pre-defining entire workflows before execution, Runback allows you to add and execute steps as needed, providing great flexibility.
 
-**核心机制**：
-- 通过 `work.step()` 方法添加并选择性地执行单个步骤
-- 每个步骤有唯一的ID，可以独立执行
-- 步骤执行后会更新工作流状态
-- 可以通过 `run` 参数控制是否立即执行步骤
+**Core Mechanisms**:
+- Add and optionally execute individual steps via `work.step()`
+- Each step has a unique ID and can be executed independently
+- Step execution updates workflow state
+- Control immediate step execution via the `run` parameter
 
-### 2. 结果保存与引用
+### 2. Result Persistence and Reference
 
-每个步骤的执行结果都会被保存，并可以通过特殊的引用语法被后续步骤使用。
+Each step's execution result is saved and can be referenced by subsequent steps using a special reference syntax.
 
-**引用机制**：
-- 使用 `$ref.步骤ID.属性路径` 语法引用之前步骤的结果
-- 支持嵌套属性访问
-- 在循环中可以使用 `$ref.$item` 引用当前迭代项
+**Reference Mechanism**:
+- Use `$ref.stepId.propertyPath` syntax to reference previous step results
+- Supports nested property access
+- Use `$ref.$item` to reference current iteration item in loops
 
-### 3. 状态持久化
+### 3. State Persistence
 
-Runback 会自动保存工作流状态到文件，包括所有步骤定义和最后一次运行的历史记录。你可以随时通过 `work.load()` 方法从文件加载工作流状态，继续构建或执行。
+Runback automatically persists workflow state to a file, including all step definitions and the last run's history. You can load workflow state at any time via `work.load()` to continue building or executing.
 
-## 工作流构建模式
+## Workflow Building Patterns
 
-Runback 支持两种工作流构建模式：
+Runback supports two workflow building patterns:
 
-### 1. 渐进式构建模式
+### 1. Progressive Building Pattern
 
-通过 `work.step(step, true)` 添加步骤并立即执行，这样可以一步一步地构建和执行工作流，每一步都会立即产生结果，可以根据当前结果决定下一步操作。
+Add and immediately execute steps via `work.step(step, true)`, allowing you to build and execute workflows step by step, with each step producing immediate results that can inform the next action.
 
 ```typescript
-// 添加并立即执行步骤
+// Add and immediately execute step
 await work.step({
   id: 'getData',
   action: 'fetchData',
   options: {}
-}, true); // true 是默认值，可以省略
+}, true); // true is default and can be omitted
 ```
 
-### 2. 编排构建模式
+### 2. Orchestration Building Pattern
 
-通过 `work.step(step, false)` 添加步骤但不立即执行，这样可以先定义整个工作流的结构，然后再通过 `work.run()` 一次性执行所有步骤。
+Add steps without immediate execution via `work.step(step, false)`, allowing you to define the entire workflow structure first, then execute all steps at once via `work.run()`.
 
 ```typescript
-// 只添加步骤，不立即执行
+// Add steps without immediate execution
 await work.step({
   id: 'getData',
   action: 'fetchData',
@@ -181,192 +179,192 @@ await work.step({
   }
 }, false);
 
-// 一次性执行所有步骤，必须指定入口步骤
+// Execute all steps at once, must specify entry step
 await work.run({ 
-  entry: 'getData',  // 指定入口步骤
+  entry: 'getData',  // Specify entry step
   actions: work.actions 
 });
 ```
 
-## 运行工作流
+## Running Workflows
 
-### 1. 指定运行起点
+### 1. Specifying Run Start Point
 
-Runback 支持从任意步骤开始运行工作流。通过 `work.run({ entry: 'stepId' })` 指定入口步骤，系统会自动执行该步骤及其所有依赖步骤。
+Runback supports starting workflow execution from any step. Use `work.run({ entry: 'stepId' })` to specify the entry step, and the system will automatically execute that step and all its dependencies.
 
 ```typescript
-// 从 step1 开始运行
+// Run from step1
 await work.run({ 
-  entry: 'step1'  // 必须指定入口步骤
+  entry: 'step1'  // Must specify entry step
 });
 
-// 从 processData 开始运行
+// Run from processData
 await work.run({ 
-  entry: 'processData'  // 可以从任意步骤开始
+  entry: 'processData'  // Can start from any step
 });
 ```
 
-### 2. 运行参数
+### 2. Runtime Parameters
 
-通过 `entryOptions` 可以在运行时动态覆盖入口步骤的参数。这对于需要根据不同场景调整参数的情况特别有用。
+Use `entryOptions` to dynamically override entry step parameters at runtime. This is particularly useful for scenarios requiring parameter adjustments based on different contexts.
 
 ```typescript
-// 定义步骤时使用固定参数
+// Use fixed parameters when defining step
 await work.step({
   id: 'step1',
   action: 'fetchUser',
-  options: { userId: '123' }  // 固定参数
+  options: { userId: '123' }  // Fixed parameters
 });
 
-// 运行时覆盖参数
+// Override parameters at runtime
 await work.run({ 
   entry: 'step1',
-  entryOptions: { userId: '456' }  // 动态参数会覆盖固定参数
+  entryOptions: { userId: '456' }  // Dynamic parameters override fixed parameters
 });
 ```
 
-### 3. 指定步骤运行
+### 3. Specified Step Execution
 
-使用 `onlyRuns` 模式可以直接指定要运行的步骤，不需要指定入口步骤。如果这些步骤依赖其他步骤的数据，系统会自动从历史记录中加载。
+Use `onlyRuns` mode to directly specify which steps to run, without needing to specify an entry step. If these steps depend on data from other steps, the system will automatically load from history.
 
 ```typescript
-// 只运行特定的步骤
+// Run only specific steps
 await work.run({ 
-  onlyRuns: ['processData', 'generateReport']  // 直接指定要运行的步骤
+  onlyRuns: ['processData', 'generateReport']  // Directly specify steps to run
 });
 ```
 
-### 4. 断点运行
+### 4. Breakpoint Execution
 
-通过 `resume` 参数可以加载上次运行的完整上下文，这样从任意入口步骤开始运行时，都可以访问到上次运行的所有结果。这对于需要基于上次运行结果继续处理的情况特别有用。
+Use the `resume` parameter to load the complete context from the last run, allowing access to all results from the previous run when starting from any entry step. This is particularly useful for scenarios requiring continuation based on previous run results.
 
 ```typescript
-// 可以从上次运行结果中的任意步骤开始
+// Can start from any step in last run's results
 await work.run({ 
   entry: 'processData', 
-  resume: true // 使用上次运行的数据
+  resume: true // Use data from last run
 });
 ```
 
-## 控制流
+## Control Flow
 
-### 1. 条件（if）
+### 1. Conditions (if)
 
-Runback 支持通过 `type: 'if'` 来创建条件分支。条件步骤会返回一个布尔值，后续步骤可以通过 `depends` 属性指定在条件为 true 或 false 时执行。
+Runback supports conditional branching via `type: 'if'`. Conditional steps return a boolean value, and subsequent steps can specify execution conditions using the `depends` property.
 
 ```typescript
-// 定义动作
+// Define actions
 const actions = {
   'fetchUser': async (options) => {
-    // 模拟从API获取用户数据
+    // Simulate fetching user data from API
     return { 
       user: { 
         id: options.userId, 
         name: "John Doe",
-        role: "admin"  // 用户角色
+        role: "admin"  // User role
       } 
     };
   },
   'checkPermission': async (options) => {
-    // 检查用户权限
+    // Check user permissions
     return options.user.role === 'admin';
   },
   'processAdminTask': async (options) => {
-    // 处理管理员任务
+    // Process admin task
     return { 
       message: `Admin ${options.user.name} processed task successfully` 
     };
   },
   'handleNoPermission': async (options) => {
-    // 处理无权限情况
+    // Handle no permission case
     return { 
       error: `User ${options.user.name} has no permission to perform this task` 
     };
   }
 };
 
-// 创建工作流
+// Create workflow
 const work = new Work(actions, 'permission-workflow.json');
 await work.load();
 
-// 1. 获取用户信息
+// 1. Get user info
 await work.step({
   id: 'getUser',
   action: 'fetchUser',
   options: { userId: '123' }
 });
 
-// 2. 检查权限（条件步骤）
+// 2. Check permissions (conditional step)
 await work.step({
   id: 'checkPermission',
   action: 'checkPermission',
   options: { user: '$ref.getUser.user' },
-  type: 'if'  // 标记为条件步骤
+  type: 'if'  // Mark as conditional step
 });
 
-// 3. 根据权限执行不同操作
+// 3. Execute different operations based on permissions
 await work.step({
   id: 'processAdminTask',
   action: 'processAdminTask',
   options: { user: '$ref.getUser.user' },
-  depends: ['checkPermission.true']  // 只在权限检查通过时执行
+  depends: ['checkPermission.true']  // Execute only when permission check passes
 });
 
 await work.step({
   id: 'handleNoPermission',
   action: 'handleNoPermission',
   options: { user: '$ref.getUser.user' },
-  depends: ['checkPermission.false']  // 只在权限检查失败时执行
+  depends: ['checkPermission.false']  // Execute only when permission check fails
 });
 
-// 执行工作流，指定入口步骤
+// Execute workflow, specifying entry step
 await work.run({ entry: 'getUser' });
 ```
 
-在这个例子中：
-1. `checkPermission` 步骤被标记为条件步骤（`type: 'if'`）
-2. 条件步骤会返回一个布尔值（true/false）
-3. 后续步骤通过 `depends` 属性指定在什么条件下执行：
-   - `checkPermission.true` 表示在条件为 true 时执行
-   - `checkPermission.false` 表示在条件为 false 时执行
-4. 工作流会根据条件自动选择执行路径
+In this example:
+1. `checkPermission` step is marked as a conditional step (`type: 'if'`)
+2. Conditional step returns a boolean value (true/false)
+3. Subsequent steps specify execution conditions via `depends` property:
+   - `checkPermission.true` means execute when condition is true
+   - `checkPermission.false` means execute when condition is false
+4. Workflow automatically selects execution path based on conditions
 
-### 2. 分支汇聚
+### 2. Branch Convergence
 
-在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚，例如 `$ref.step1.result,$ref.step2.result`
+In conditional branching scenarios, Runback supports branch convergence via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
 
 ```typescript
-// 1. 获取用户信息
+// 1. Get user info
 await work.step({
   id: 'getUser',
   action: 'fetchUser',
   options: { userId: '123' }
 });
 
-// 2. 检查用户状态（条件步骤）
+// 2. Check user status (conditional step)
 await work.step({
   id: 'checkStatus',
   action: 'checkUserStatus',
   options: { user: '$ref.getUser.user' },
-  type: 'if'  // 标记为条件步骤
+  type: 'if'  // Mark as conditional step
 });
 
-// 3. 根据不同状态执行不同操作
+// 3. Execute different operations based on status
 await work.step({
   id: 'processActiveUser',
   action: 'processActiveUser',
   options: { user: '$ref.getUser.user' },
-  depends: ['checkStatus.true']  // 用户活跃时执行
+  depends: ['checkStatus.true']  // Execute for active users
 });
 
 await work.step({
   id: 'sendWelcomeBack',
   action: 'sendWelcomeBack',
   options: { user: '$ref.getUser.user' },
-  depends: ['checkStatus.false']  // 用户不活跃时执行
+  depends: ['checkStatus.false']  // Execute for inactive users
 });
 
-// 4. 分支汇聚 - 无论用户是否活跃，都执行这个步骤
+// 4. Branch convergence - Execute regardless of user status
 await work.step({
   id: 'logUserActivity',
   action: 'logActivity',
@@ -374,32 +372,32 @@ await work.step({
     userId: '$ref.getUser.user.id',
     timestamp: new Date().toISOString()
   },
-  depends: ['processActiveUser', 'sendWelcomeBack']  // 任意一个前置步骤完成后执行
+  depends: ['processActiveUser', 'sendWelcomeBack']  // Execute after either predecessor completes
 });
 
-// 5. 继续后续处理
+// 5. Continue processing
 await work.step({
   id: 'continueProcessing',
   action: 'continueWorkflow',
   options: {},
-  depends: ['logUserActivity']  // 等待日志记录完成
+  depends: ['logUserActivity']  // Wait for logging to complete
 });
 ```
 
-在这个例子中：
-1. `logUserActivity` 步骤会在 `processActiveUser` 或 `sendWelcomeBack` 任意一个步骤完成后执行
-2. 通过逗号分隔多个依赖路径，实现分支汇聚的逻辑
-3. 这种方式可以灵活地处理并行或条件分支的汇聚场景
+In this example:
+1. `logUserActivity` step executes after either `processActiveUser` or `sendWelcomeBack` completes
+2. Multiple dependency paths separated by commas implement branch convergence logic
+3. This approach flexibly handles parallel or conditional branch convergence scenarios
 
-### 3. 数组处理（each）
+### 3. Array Processing (each)
 
-Runback 支持通过 `each` 属性对数组数据进行迭代处理。在迭代步骤中，可以使用 `$ref.$item` 引用当前迭代项，使用 `$ref.$index` 引用当前索引。
+Runback supports array data iteration via the `each` property. In iteration steps, use `$ref.$item` to reference the current iteration item and `$ref.$index` to reference the current index.
 
 ```typescript
-// 定义动作
+// Define actions
 const actions = {
   'fetchUsers': async () => {
-    // 模拟从API获取用户列表
+    // Simulate fetching user list from API
     return { 
       users: [
         { id: '1', name: 'Alice', score: 85 },
@@ -409,7 +407,7 @@ const actions = {
     };
   },
   'processUser': async (options) => {
-    // 处理单个用户数据
+    // Process single user data
     const { user, index } = options;
     return {
       id: user.id,
@@ -419,7 +417,7 @@ const actions = {
     };
   },
   'generateReport': async (options) => {
-    // 生成汇总报告
+    // Generate summary report
     const { processedUsers } = options;
     const gradeCount = {
       A: processedUsers.filter(u => u.grade === 'A').length,
@@ -434,88 +432,88 @@ const actions = {
   }
 };
 
-// 创建工作流
+// Create workflow
 const work = new Work(actions, 'user-processing.json');
 await work.load();
 
-// 1. 获取用户列表
+// 1. Get user list
 await work.step({
   id: 'getUsers',
   action: 'fetchUsers',
   options: {}
 });
 
-// 2. 对每个用户进行处理
+// 2. Process each user
 await work.step({
   id: 'processUsers',
   action: 'processUser',
-  each: '$ref.getUsers.users',  // 遍历用户数组
+  each: '$ref.getUsers.users',  // Iterate over user array
   options: {
-    user: '$ref.$item',        // 引用当前用户
-    index: '$ref.$index'       // 引用当前索引
+    user: '$ref.$item',        // Reference current user
+    index: '$ref.$index'       // Reference current index
   }
 });
 
-// 3. 生成汇总报告
+// 3. Generate summary report
 await work.step({
   id: 'createReport',
   action: 'generateReport',
   options: {
-    processedUsers: '$ref.processUsers'  // 引用处理后的用户数组
+    processedUsers: '$ref.processUsers'  // Reference processed user array
   }
 });
 
-// 执行工作流
+// Execute workflow
 await work.run({ entry: 'getUsers' });
 ```
 
-在这个例子中：
-1. `processUsers` 步骤通过 `each` 属性指定要遍历的数组
-2. 在迭代步骤中：
-   - `$ref.$item` 引用当前正在处理的用户对象
-   - `$ref.$index` 引用当前处理的索引位置
-3. 迭代步骤的结果会自动合并为一个数组
-4. 后续步骤可以直接引用整个处理后的数组
+In this example:
+1. `processUsers` step specifies array to iterate over via `each` property
+2. In iteration step:
+   - `$ref.$item` references current user object
+   - `$ref.$index` references current index position
+3. Iteration step results automatically merge into an array
+4. Subsequent steps can directly reference the entire processed array
 
-### 3. 并行和合并
+### 4. Parallel and Merge
 
-Runback 的步骤执行机制是基于依赖关系的自动并行执行。只要一个步骤的所有依赖步骤都完成了，这个步骤就会立即执行，不需要手动处理并行和合并逻辑。
+Runback's step execution mechanism is based on automatic parallel execution of dependencies. As soon as all dependencies of a step are completed, that step executes immediately, without manual parallel and merge logic handling.
 
 ```typescript
-// 定义动作
+// Define actions
 const actions = {
   'fetchData': async () => {
-    // 模拟获取数据
-    return { data: "原始数据" };
+    // Simulate fetching data
+    return { data: "raw data" };
   },
   'processA': async (options) => {
-    // 处理数据的方式 A
-    return { result: `A处理: ${options.data}` };
+    // Process data method A
+    return { result: `A process: ${options.data}` };
   },
   'processB': async (options) => {
-    // 处理数据的方式 B
-    return { result: `B处理: ${options.data}` };
+    // Process data method B
+    return { result: `B process: ${options.data}` };
   },
   'combineResults': async (options) => {
-    // 合并处理结果
+    // Combine processing results
     return {
-      finalResult: `合并结果: ${options.resultA.result}, ${options.resultB.result}`
+      finalResult: `Combined result: ${options.resultA.result}, ${options.resultB.result}`
     };
   }
 };
 
-// 创建工作流
+// Create workflow
 const work = new Work(actions, 'parallel-workflow.json');
 await work.load();
 
-// 1. 获取数据
+// 1. Get data
 await work.step({
   id: 'getData',
   action: 'fetchData',
   options: {}
 });
 
-// 2. 并行处理数据（两个处理步骤都依赖 getData）
+// 2. Parallel data processing (both processing steps depend on getData)
 await work.step({
   id: 'processA',
   action: 'processA',
@@ -528,7 +526,7 @@ await work.step({
   options: { data: '$ref.getData.data' }
 });
 
-// 3. 合并结果（依赖两个处理步骤）
+// 3. Combine results (depends on both processing steps)
 await work.step({
   id: 'combine',
   action: 'combineResults',
@@ -538,37 +536,37 @@ await work.step({
   }
 });
 
-// 执行工作流
+// Execute workflow
 await work.run({ entry: 'getData' });
 ```
 
-在这个例子中：
-1. `processA` 和 `processB` 都依赖 `getData` 的结果
-2. 当 `getData` 完成后，`processA` 和 `processB` 会自动并行执行
-3. 当 `processA` 和 `processB` 都完成后，`combine` 步骤会自动执行
-4. 整个过程不需要手动处理并行和合并逻辑
+In this example:
+1. Both `processA` and `processB` depend on `getData` results
+2. When `getData` completes, `processA` and `processB` automatically execute in parallel
+3. When both `processA` and `processB` complete, `combine` step automatically executes
+4. No manual parallel and merge logic handling required
 
-### 4. 分支汇聚
+### 5. Branch Convergence
 
-在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚，例如 `$ref.step1.result,$ref.step2.result`
+In conditional branching scenarios, Runback supports branch convergence via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
 
 ```typescript
-// 定义动作
+// Define actions
 const actions = {
   'checkUser': async (options) => {
-    // 检查用户状态
+    // Check user status
     return options.userId === 'admin';
   },
   'processAdmin': async (options) => {
-    // 处理管理员逻辑
-    return { message: "管理员处理完成" };
+    // Process admin logic
+    return { message: "Admin processing complete" };
   },
   'processNormalUser': async (options) => {
-    // 处理普通用户逻辑
-    return { message: "普通用户处理完成" };
+    // Process normal user logic
+    return { message: "Normal user processing complete" };
   },
   'mergeResult': async (options) => {
-    // 合并处理结果
+    // Merge processing results
     return {
       finalMessage: options.result,
       timestamp: new Date().toISOString()
@@ -576,11 +574,11 @@ const actions = {
   }
 };
 
-// 创建工作流
+// Create workflow
 const work = new Work(actions, 'branch-workflow.json');
 await work.load();
 
-// 1. 检查用户类型（条件步骤）
+// 1. Check user type (conditional step)
 await work.step({
   id: 'checkUser',
   action: 'checkUser',
@@ -588,7 +586,7 @@ await work.step({
   type: 'if'
 });
 
-// 2. 根据用户类型处理（两个分支）
+// 2. Process based on user type (two branches)
 await work.step({
   id: 'processAdmin',
   action: 'processAdmin',
@@ -603,74 +601,74 @@ await work.step({
   depends: ['checkUser.false']
 });
 
-// 3. 合并分支结果
+// 3. Merge branch results
 await work.step({
   id: 'mergeResult',
   action: 'mergeResult',
   options: {
-    // 使用逗号分隔的引用，系统会返回第一个成功获取到的值
+    // Use comma-separated references, system returns first successfully retrieved value
     result: '$ref.processAdmin.message,$ref.processNormalUser.message'
   }
 });
 
-// 执行工作流
+// Execute workflow
 await work.run({ entry: 'checkUser' });
 ```
 
-在这个例子中：
-1. `checkUser` 步骤根据用户ID返回 true/false
-2. 根据条件结果，会执行 `processAdmin` 或 `processNormalUser` 其中一个步骤
-3. `mergeResult` 步骤使用逗号分隔的引用：
+In this example:
+1. `checkUser` step returns true/false based on user ID
+2. Based on condition result, either `processAdmin` or `processNormalUser` executes
+3. `mergeResult` step uses comma-separated references:
    - `$ref.processAdmin.message,$ref.processNormalUser.message`
-   - 如果用户是管理员，会获取到 `processAdmin.message` 的值
-   - 如果用户是普通用户，会获取到 `processNormalUser.message` 的值
-4. 系统会自动处理分支汇聚，不需要手动判断哪个分支被执行
+   - If user is admin, gets value from `processAdmin.message`
+   - If user is normal, gets value from `processNormalUser.message`
+4. System automatically handles branch convergence without manual branch execution checking
 
-## API参考
+## API Reference
 
-### Work 类
+### Work Class
 
 ```typescript
 class Work {
   constructor(actions?: Record<string, Function>, savePath?: string);
   
-  // 核心方法
-  async step(step: Step, run: boolean = true): Promise<any>;  // 添加单个步骤，并可选择是否立即执行
-  async run(options: RunOptions): Promise<RunHistoryRecord[]>;  // 执行整个工作流
+  // Core methods
+  async step(step: Step, run: boolean = true): Promise<any>;  // Add single step, optionally execute immediately
+  async run(options: RunOptions): Promise<RunHistoryRecord[]>;  // Execute entire workflow
   
-  // 状态管理
-  async load(path?: string): Promise<void>;  // 加载工作流状态
+  // State management
+  async load(path?: string): Promise<void>;  // Load workflow state
 }
 ```
 
-### Step 接口
+### Step Interface
 
 ```typescript
 interface Step {
-  id: string;  // 步骤唯一标识符
-  action: string;  // 要执行的动作名称
-  type?: "if";  // 步骤类型，'if' 表示条件步骤
-  name?: string;  // 步骤名称
-  options?: Record<string, any>;  // 传递给动作的参数
-  depends?: string[];  // 依赖的步骤
-  each?: string;  // 用于迭代的数据引用
+  id: string;  // Unique step identifier
+  action: string;  // Action name to execute
+  type?: "if";  // Step type, 'if' indicates conditional step
+  name?: string;  // Step name
+  options?: Record<string, any>;  // Parameters passed to action
+  depends?: string[];  // Dependent steps
+  each?: string;  // Data reference for iteration
 }
 ```
 
-### RunOptions 接口
+### RunOptions Interface
 
 ```typescript
 interface RunOptions {
-  entry?: string;  // 入口步骤ID
-  entryOptions?: any;  // 入口步骤的参数
-  actions?: Record<string, Function>;  // 可执行的动作
-  history?: RunHistoryRecord[];  // 历史记录
-  onlyRuns?: string[];  // 只运行指定的步骤
-  logLevel?: LogLevel;  // 日志级别
-  resume?: boolean;  // 是否恢复执行
+  entry?: string;  // Entry step ID
+  entryOptions?: any;  // Entry step parameters
+  actions?: Record<string, Function>;  // Executable actions
+  history?: RunHistoryRecord[];  // History records
+  onlyRuns?: string[];  // Only run specified steps
+  logLevel?: LogLevel;  // Log level
+  resume?: boolean;  // Whether to resume execution
 }
 ```
 
-## 许可证
+## License
 
-MIT
+MIT 
