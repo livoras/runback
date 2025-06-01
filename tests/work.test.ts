@@ -1,340 +1,264 @@
-import { Workflow } from '../src/workflow'
+import { Work } from '../src/work'
+import path from 'path'
 
-describe('Workflow', () => {
-  // 模拟的 actions
+// 创建 mock 函数
+const mockEnsureDir = jest.fn().mockResolvedValue(undefined)
+const mockWriteFile = jest.fn().mockResolvedValue(undefined)
+const mockExists = jest.fn().mockResolvedValue(true)
+const mockReadFile = jest.fn().mockResolvedValue(JSON.stringify({
+  steps: [
+    { id: 'testStep', action: 'testAction', options: { test: 'value' } }
+  ],
+  lastRun: { results: { testStep: { success: true } } }
+}))
+
+// Mock fs-extra 模块
+jest.mock('fs-extra', () => ({
+  ensureDir: mockEnsureDir,
+  writeFile: mockWriteFile,
+  exists: mockExists,
+  readFile: mockReadFile
+}))
+
+// 导入被模拟的模块
+import fs from 'fs-extra'
+
+describe('Work', () => {
+  // Mock actions for testing
   const mockActions = {
-    getUserInfo: jest.fn().mockImplementation((options: { id: number }) => {
-      if (!options?.id) throw new Error("id is required")
-      return { name: "jerry" }
+    fetchData: jest.fn().mockImplementation(() => {
+      return { data: ['item1', 'item2', 'item3'] }
     }),
-    checkUserName: jest.fn().mockImplementation(({ name }: { name: string }) => {
-      return ["jerry", "tom"].includes(name)
+    processItem: jest.fn().mockImplementation((options: { item: string }) => {
+      return { processed: `processed-${options.item}` }
     }),
-    sayHi: jest.fn().mockImplementation(({ input: { name } }: { input: { name: string } }) => {
-      return { result: `hi!!! ${name}` }
-    }),
-    log: jest.fn().mockImplementation(({ message }: { message: string }) => {
-      return "OJBK"
-    }),
-    delay: jest.fn().mockImplementation(async ({ ms }: { ms: number }) => {
-      await new Promise(resolve => setTimeout(resolve, ms))
-      return `delayed ${ms}ms`
+    summarize: jest.fn().mockImplementation((options: { items: any[] }) => {
+      return { count: options.items.length, items: options.items }
     })
   }
 
   beforeEach(() => {
-    // 重置所有 mock 函数的调用记录
-    Object.values(mockActions).forEach(action => {
-      if (jest.isMockFunction(action)) {
-        action.mockClear()
+    // Reset all mock functions
+    Object.values(mockActions).forEach(mock => {
+      if (jest.isMockFunction(mock)) {
+        mock.mockClear()
       }
-    })
-  })
-
-  describe('if logic', () => {
-    it('should execute true branch when condition is true', async () => {
-      const wf = new Workflow({
-        steps: [
-          { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
-          { id: "checkUserName", action: "checkUserName", options: { name: "$ref.getUserInfoId.name" }, type: "if" },
-          { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" } }, depends: ["checkUserName.true"] },
-          { id: "logId", action: "log", options: { message: "$ref.sayHiId.result" } },
-        ]
-      })
-
-      await wf.run({ actions: mockActions, entry: "getUserInfoId" })
-
-      expect(mockActions.getUserInfo).toHaveBeenCalledWith({ id: 123 })
-      expect(mockActions.checkUserName).toHaveBeenCalledWith({ name: "jerry" })
-      expect(mockActions.sayHi).toHaveBeenCalledWith({ input: { name: "jerry" } })
-      expect(mockActions.log).toHaveBeenCalledWith({ message: "hi!!! jerry" })
-    })
-
-    it('should not execute false branch when condition is false', async () => {
-      mockActions.getUserInfo.mockImplementationOnce(() => ({ name: "unknown" }))
-      
-      const wf = new Workflow({
-        steps: [
-          { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
-          { id: "checkUserName", action: "checkUserName", options: { name: "$ref.getUserInfoId.name" }, type: "if" },
-          { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" } }, depends: ["checkUserName.true"] },
-          { id: "logId", action: "log", options: { message: "$ref.sayHiId.result" } },
-        ]
-      })
-
-      await wf.run({ actions: mockActions, entry: "getUserInfoId" })
-
-      expect(mockActions.getUserInfo).toHaveBeenCalledWith({ id: 123 })
-      expect(mockActions.checkUserName).toHaveBeenCalledWith({ name: "unknown" })
-      expect(mockActions.sayHi).not.toHaveBeenCalled()
-      expect(mockActions.log).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('entry logic', () => {
-    it('should start from specified entry point', async () => {
-      const wf = new Workflow({
-        steps: [
-          { id: "step1", action: "log", options: { message: "step1" } },
-          { id: "step2", action: "log", options: { message: "step2" } },
-          { id: "step3", action: "log", options: { message: "step3" } },
-        ]
-      })
-
-      await wf.run({ actions: mockActions, entry: "step2" })
-
-      expect(mockActions.log).toHaveBeenCalledTimes(1)
-      expect(mockActions.log).toHaveBeenCalledWith({ message: "step2" })
-    })
-  })
-
-  describe('dependencies', () => {
-    it('should wait for all dependencies to complete', async () => {
-      const wf = new Workflow({
-        steps: [
-          { id: "step0", action: "log", options: { "message": "step0" }},
-          { id: "step1", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step2", action: "delay", options: { ms: 50 }, depends: ["step0"] },
-          { id: "step3", action: "log", options: { message: ["$ref.step1", "$ref.step2"] }, depends: ["step1", "step2"] },
-        ]
-      })
-
-      const startTime = Date.now()
-      await wf.run({ actions: mockActions, entry: "step0" })
-      const endTime = Date.now()
-
-      expect(endTime - startTime).toBeGreaterThanOrEqual(100) // 应该等待最长的延迟
-      expect(mockActions.log).toHaveBeenCalledWith({ message: ["delayed 100ms", "delayed 50ms"] })
-    })
-  })
-
-  describe('entry、无依赖、依赖 entry 的 step 执行情况', () => {
-    it('step1 (entry) 和 step3 (依赖 entry) 被执行，step2 (无依赖) 不被执行', async () => {
-      const step1Action = jest.fn()
-      const step2Action = jest.fn()
-      const step3Action = jest.fn()
-      const wf = new Workflow({
-        steps: [
-          { id: "step1", action: "step1Action" }, // entry
-          { id: "step2", action: "step2Action" }, // 无依赖
-          { id: "step3", action: "step3Action", options: { from: "$ref.step1" } }, // 自动依赖 step1
-        ]
-      })
-      await wf.run({ actions: { step1Action, step2Action, step3Action }, entry: "step1" })
-      expect(step1Action).toHaveBeenCalled()
-      expect(step3Action).toHaveBeenCalledWith({ from: undefined }) // step1Action 返回 undefined，from: undefined
-      expect(step2Action).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('孤立 step 不会被执行', () => {
-    it('should not execute steps without depends and not entry', async () => {
-      const orphanAction = jest.fn()
-      const wf = new Workflow({
-        steps: [
-          { id: "entryStep", action: "log", options: { message: "entry" } },
-          { id: "orphanStep", action: "orphanAction" }, // 没有 depends，也不是 entry
-        ]
-      })
-      await wf.run({ actions: { ...mockActions, orphanAction }, entry: "entryStep" })
-      expect(mockActions.log).toHaveBeenCalledWith({ message: "entry" })
-      expect(orphanAction).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('parameter collection', () => {
-    it('should correctly collect and inject parameters', async () => {
-      const wf = new Workflow({
-        steps: [
-          { id: "step1", action: "getUserInfo", options: { id: 123 } },
-          { id: "step2", action: "sayHi", options: { input: { name: "$ref.step1.name" } } },
-          { id: "step3", action: "log", options: { message: "$ref.step2.result" } },
-        ]
-      })
-
-      await wf.run({ actions: mockActions, entry: "step1" })
-
-      expect(mockActions.getUserInfo).toHaveBeenCalledWith({ id: 123 })
-      expect(mockActions.sayHi).toHaveBeenCalledWith({ input: { name: "jerry" } })
-      expect(mockActions.log).toHaveBeenCalledWith({ message: "hi!!! jerry" })
-    })
-
-    it('should handle nested parameter references', async () => {
-      const wf = new Workflow({
-        steps: [
-          { id: "step1", action: "getUserInfo", options: { id: 123 } },
-          { id: "step2", action: "sayHi", options: { input: { name: "$ref.step1.name" } } },
-          { id: "step3", action: "log", options: { message: { nested: "$ref.step2.result" } } },
-        ]
-      })
-
-      await wf.run({ actions: mockActions, entry: "step1" })
-
-      expect(mockActions.log).toHaveBeenCalledWith({ message: { nested: "hi!!! jerry" } })
-    })
-  })
-
-  describe('each 相关功能', () => {
-    it('基础 each：遍历数组，参数注入 $item、$index', async () => {
-      const arr = [{v:1},{v:2},{v:3}]
-      const mock = jest.fn(({item, idx}) => item.v + idx)
-      const wf = new Workflow({
-        steps: [
-          { id: 'arr', action: 'getArr' },
-          { id: 'sum', action: 'mock', options: { item: '$ref.$item', idx: '$ref.$index' }, each: '$ref.arr' }
-        ]
-      })
-      await wf.run({ actions: { getArr: () => arr, mock }, entry: 'arr' })
-      expect(mock).toHaveBeenCalledTimes(3)
-      expect(mock.mock.calls.map(c=>c[0])).toEqual([
-        {item: {v:1}, idx:0},
-        {item: {v:2}, idx:1},
-        {item: {v:3}, idx:2}
-      ])
-    })
-
-    it('each 嵌套 each：二维数组全展开', async () => {
-      const arr = [[1,2],[3,4]]
-      const mock = jest.fn(({item, idx, subitem, subidx}) => item[idx][subidx] + subitem)
-      const wf = new Workflow({
-        steps: [
-          { id: 'arr', action: 'getArr' },
-          { id: 'row', action: 'identity', options: { item: '$ref.$item', idx: '$ref.$index' }, each: '$ref.arr' },
-          { id: 'col', action: 'mock', options: { item: '$ref.row', idx: '$ref.$index', subitem: '$ref.$item', subidx: '$ref.$index' }, each: '$ref.row' }
-        ]
-      })
-      await wf.run({ actions: { getArr: () => arr, identity: (x: any) => x, mock }, entry: 'arr' })
-      // row: 2次，col: 4次
-      expect(mock).toHaveBeenCalledTimes(2) // 当前实现只支持遍历最后一个 row
-      // 这里只校验被调用次数和参数结构
-    })
-
-    it('each 结果为空数组', async () => {
-      const mock = jest.fn()
-      const wf = new Workflow({
-        steps: [
-          { id: 'arr', action: 'getArr' },
-          { id: 'sum', action: 'mock', options: { item: '$ref.$item' }, each: '$ref.arr' }
-        ]
-      })
-      await wf.run({ actions: { getArr: () => [], mock }, entry: 'arr' })
-      expect(mock).not.toHaveBeenCalled()
-    })
-
-    it('each 遍历', async () => {
-      const arr = [{v:true},{v:false}]
-      const mock = jest.fn(({item}) => !!item.v)
-      const wf = new Workflow({
-        steps: [
-          { id: 'arr', action: 'getArr' },
-          { id: 'judge', action: 'mock', options: { item: '$ref.$item' }, each: '$ref.arr' }
-        ]
-      })
-      await wf.run({ actions: { getArr: () => arr, mock }, entry: 'arr' })
-      expect(mock).toHaveBeenCalledTimes(2)
     })
     
-    it('if 条件分支', async () => {
-      const value = true
-      const mock = jest.fn(() => value)
-      const mockTrue = jest.fn()
-      const mockFalse = jest.fn()
-      const wf = new Workflow({
-        steps: [
-          { id: 'condition', action: 'mock', type: 'if' },
-          { id: 'trueStep', action: 'mockTrue', depends: ['condition.true'] },
-          { id: 'falseStep', action: 'mockFalse', depends: ['condition.false'] }
-        ]
-      })
-      await wf.run({ actions: { mock, mockTrue, mockFalse }, entry: 'condition' })
-      expect(mock).toHaveBeenCalledTimes(1)
-      expect(mockTrue).toHaveBeenCalledTimes(1)
-      expect(mockFalse).not.toHaveBeenCalled()
+    // Reset fs-extra mocks
+    mockEnsureDir.mockClear()
+    mockWriteFile.mockClear()
+    mockExists.mockClear()
+    mockReadFile.mockClear()
+  })
+
+  describe('constructor', () => {
+    it('should initialize with empty steps and null lastRun', () => {
+      const work = new Work()
+      expect(work['steps']).toEqual([])
+      expect(work['lastRun']).toBeNull()
+      expect(work['stepsMap']).toEqual({})
     })
 
-    it('each 的 options 里多层 $ref', async () => {
-      const arr = [{v: 10}, {v: 20}]
-      const mock = jest.fn(({val, idx}) => val + idx)
-      const wf = new Workflow({
-        steps: [
-          { id: 'arr', action: 'getArr' },
-          { id: 'mockStep', action: 'mock', options: { val: '$ref.$item.v', idx: '$ref.$index' }, each: '$ref.arr' }
-        ]
-      })
-      await wf.run({ actions: { getArr: () => arr, mock }, entry: 'arr' })
-      expect(mock).toHaveBeenCalledWith({ val: 10, idx: 0 })
-      expect(mock).toHaveBeenCalledWith({ val: 20, idx: 1 })
-    })
-
-    it('each 的 step 没有 options', async () => {
-      const arr = [1,2,3]
-      const mock = jest.fn(() => 42)
-      const wf = new Workflow({
-        steps: [
-          { id: 'arr', action: 'getArr' },
-          { id: 'mockStep', action: 'mock', each: '$ref.arr' }
-        ]
-      })
-      await wf.run({ actions: { getArr: () => arr, mock }, entry: 'arr' })
-      expect(mock).toHaveBeenCalledTimes(3)
-    })
-
-    it('each 的 step 返回类型多样', async () => {
-      const arr = [1,2,3]
-      const mock = jest.fn((x) => typeof x === 'object' ? 1 : 2)
-      const wf = new Workflow({
-        steps: [
-          { id: 'arr', action: 'getArr' },
-          { id: 'mockStep', action: 'mock', options: { x: '$ref.$item' }, each: '$ref.arr' }
-        ]
-      })
-      await wf.run({ actions: { getArr: () => arr, mock }, entry: 'arr' })
-      expect(mock).toHaveBeenCalledTimes(3)
+    it('should initialize with provided actions and savePath', () => {
+      const work = new Work(mockActions, 'test-path.json')
+      expect(work.actions).toBe(mockActions)
+      expect(work.savePath).toBe('test-path.json')
     })
   })
 
-  describe('concurrent execution', () => {
-    it('should execute independent steps concurrently', async () => {
-      const wf = new Workflow({
-        steps: [
-          { id: "step0", action: "log", options: { message: "step0" } },
-          { id: "step1", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step2", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step3", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step4", action: "log", options: { message: ["$ref.step1", "$ref.step2", "$ref.step3"] }, depends: ["step1", "step2", "step3"] },
-        ]
-      })
-
-      const startTime = Date.now()
-      await wf.run({ actions: mockActions, entry: "step0" })
-      const endTime = Date.now()
-
-      // 由于并发执行，总时间应该接近最长的单个步骤时间，而不是所有步骤时间的总和
-      expect(endTime - startTime).toBeLessThan(300)
-      expect(mockActions.log).toHaveBeenCalledWith({
-        message: ["delayed 100ms", "delayed 100ms", "delayed 100ms"]
-      })
+  describe('save', () => {
+    it('should throw error if savePath is not provided', async () => {
+      const work = new Work()
+      await expect(work.save()).rejects.toThrow('savePath is required')
     })
-  })
-  
-  describe('each 和 if 不能同时使用', () => {
-    it('应该在创建工作流时抛出错误，如果一个步骤同时使用了 each 和 if', () => {
-      const arr = [{name: 'jerry'}, {name: 'tom'}]
-      const mockAction = jest.fn()
+
+    it('should save work state to file', async () => {
+      const savePath = 'test-save-path.json'
+      const work = new Work(mockActions, savePath)
       
-      // 使用一个函数包装 Workflow 创建，以便捕获预期的错误
-      const createInvalidWorkflow = () => {
-        return new Workflow({
-          steps: [
-            { id: 'arr', action: 'getArr' },
-            // 同时使用 each 和 if，这应该会导致错误
-            { id: 'invalidStep', action: 'mockAction', type: 'if', each: '$ref.arr', options: { name: '$ref.$item.name' } }
-          ]
-        })
-      }
+      await work.save()
       
-      // 验证创建工作流时会抛出错误
-      expect(createInvalidWorkflow).toThrow('Step invalidStep cannot use \'each\' and \'if\' simultaneously')
+      expect(mockEnsureDir).toHaveBeenCalledWith(path.dirname(savePath))
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        savePath,
+        JSON.stringify({ steps: [], lastRun: null }, null, 2)
+      )
+    })
+
+    it('should use provided savePath over instance savePath', async () => {
+      const instancePath = 'instance-path.json'
+      const providedPath = 'provided-path.json'
+      const work = new Work(mockActions, instancePath)
+      
+      await work.save(providedPath)
+      
+      expect(mockEnsureDir).toHaveBeenCalledWith(path.dirname(providedPath))
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        providedPath,
+        JSON.stringify({ steps: [], lastRun: null }, null, 2)
+      )
     })
   })
-}) 
+
+  describe('load', () => {
+    it('should throw error if path is not provided', async () => {
+      const work = new Work()
+      await expect(work.load()).rejects.toThrow('path is required')
+    })
+
+    it('should load work state from file', async () => {
+      const work = new Work(mockActions, 'test-path.json')
+      
+      await work.load()
+      
+      expect(mockExists).toHaveBeenCalledWith('test-path.json')
+      expect(mockReadFile).toHaveBeenCalledWith('test-path.json', 'utf-8')
+      expect(work['steps']).toEqual([
+        { id: 'testStep', action: 'testAction', options: { test: 'value' } }
+      ])
+      expect(work['lastRun']).toEqual({ results: { testStep: { success: true } } })
+      expect(work['stepsMap']).toEqual({
+        testStep: { id: 'testStep', action: 'testAction', options: { test: 'value' } }
+      })
+    })
+
+    it('should do nothing if file does not exist', async () => {
+      mockExists.mockResolvedValueOnce(false)
+      
+      const work = new Work(mockActions, 'non-existent.json')
+      await work.load()
+      
+      expect(mockReadFile).not.toHaveBeenCalled()
+      expect(work['steps']).toEqual([])
+    })
+  })
+
+  describe('step', () => {
+    it('should add step to stepsMap', async () => {
+      const work = new Work(mockActions)
+      const step = { id: 'step1', action: 'fetchData', options: {} }
+      
+      await work.step(step, false)
+      
+      expect(work['stepsMap']).toEqual({ step1: step })
+    })
+
+    it('should run the step when run=true', async () => {
+      const work = new Work(mockActions)
+      const step = { id: 'step1', action: 'fetchData', options: {} }
+      
+      await work.step(step, true)
+      
+      expect(mockActions.fetchData).toHaveBeenCalled()
+      expect(work['lastRun']).not.toBeNull()
+    })
+
+    it('should not run the step when run=false', async () => {
+      const work = new Work(mockActions)
+      const step = { id: 'step1', action: 'fetchData', options: {} }
+      
+      await work.step(step, false)
+      
+      expect(mockActions.fetchData).not.toHaveBeenCalled()
+      expect(work['lastRun']).toBeNull()
+    })
+
+    it('should save state after step if savePath is provided', async () => {
+      const work = new Work(mockActions, 'test-path.json')
+      const step = { id: 'step1', action: 'fetchData', options: {} }
+      
+      await work.step(step, false)
+      
+      expect(mockEnsureDir).toHaveBeenCalled()
+      expect(mockWriteFile).toHaveBeenCalled()
+    })
+
+    it('should return json representation after step', async () => {
+      const work = new Work(mockActions)
+      const step = { id: 'step1', action: 'fetchData', options: {} }
+      
+      const result = await work.step(step, false)
+      
+      expect(result).toEqual({
+        steps: [step],
+        lastRun: null
+      })
+    })
+  })
+
+  describe('run', () => {
+    it('should execute workflow with all steps', async () => {
+      const work = new Work(mockActions)
+      
+      // Add steps without running
+      await work.step({ id: 'fetchData', action: 'fetchData', options: {} }, false)
+      await work.step({ 
+        id: 'processItems', 
+        action: 'processItem', 
+        each: '$ref.fetchData.data',
+        options: { item: '$ref.$item' }
+      }, false)
+      await work.step({
+        id: 'summarize',
+        action: 'summarize',
+        options: { items: '$ref.processItems' }
+      }, false)
+      
+      // Run the workflow
+      const history = await work.run({ actions: mockActions })
+      
+      // Verify actions were called
+      expect(mockActions.fetchData).toHaveBeenCalled()
+      expect(mockActions.processItem).toHaveBeenCalledTimes(3) // For each item
+      expect(mockActions.summarize).toHaveBeenCalled()
+      
+      // Verify history was returned
+      expect(Array.isArray(history)).toBe(true)
+      expect(history.length).toBeGreaterThan(0)
+    })
+
+    it('should pass actions from constructor if not provided in options', async () => {
+      const work = new Work(mockActions)
+      
+      await work.step({ id: 'fetchData', action: 'fetchData', options: {} }, false)
+      
+      // Run without providing actions in options
+      await work.run({})
+      
+      expect(mockActions.fetchData).toHaveBeenCalled()
+    })
+  })
+
+  describe('json', () => {
+    it('should return steps and lastRun in json format', () => {
+      const work = new Work()
+      const step = { id: 'step1', action: 'action1', options: {} }
+      work['stepsMap'] = { step1: step }
+      work['lastRun'] = { results: { step1: { success: true } } } as any
+      
+      const json = work['json']()
+      
+      expect(json).toEqual({
+        steps: [step],
+        lastRun: { results: { step1: { success: true } } }
+      })
+    })
+  })
+
+  describe('init', () => {
+    it('should populate stepsMap from steps array', () => {
+      const work = new Work()
+      const step1 = { id: 'step1', action: 'action1', options: {} }
+      const step2 = { id: 'step2', action: 'action2', options: {} }
+      work['steps'] = [step1, step2]
+      
+      work['init']()
+      
+      expect(work['stepsMap']).toEqual({
+        step1: step1,
+        step2: step2
+      })
+    })
+  })
+})
