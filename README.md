@@ -19,7 +19,7 @@
 
 <div align="center">
 
-  ![CI](https://github.com/livoras/runback/actions/workflows/ci.yml/badge.svg)
+  ![CI](https://github.com/livoras/runback/actions/workflows/ci-test.yml/badge.svg)
   ![GitHub last commit](https://img.shields.io/github/last-commit/livoras/confow)
   <!-- ![Node.js Version](https://img.shields.io/badge/node-%3E%3D%2022-green)
   ![Electron Version](https://img.shields.io/badge/electron-%3E%3D%2035-green) -->
