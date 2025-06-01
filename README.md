@@ -43,40 +43,82 @@ npm install runback
 
 ## 快速开始
 
+**1. 第一个地方：创建并添加初始步骤**
 ```typescript
-import { Work } from 'runback';
-
 // 定义动作
 const actions = {
-  'fetchData': async () => {
-    return { message: "Hello, Runback!" };
+  'fetchUser': async (options) => {
+    // 模拟从API获取用户数据
+    return { user: { id: options.userId, name: "John Doe" } };
   },
-  'processData': async (options) => {
-    return { processed: options.message.toUpperCase() };
+  'processUser': async (options) => {
+    // 处理用户数据
+    return { 
+      processed: {
+        ...options.user,
+        status: 'processed',
+        timestamp: new Date().toISOString()
+      }
+    };
+  },
+  'generateReport': async (options) => {
+    // 生成报告
+    return {
+      report: `User ${options.processed.name} processed at ${options.processed.timestamp}`
+    };
   }
 };
 
-const work = new Work(actions, 'my-workflow.json');
-await work.load() // 从文件中加载历史运行记录和结果
-
-// 创建工作流
-// 添加并执行步骤
-await work.step({
-  id: 'getData',
-  action: 'fetchData',
-  options: {}
-});
+// 创建并添加初始步骤
+const work = new Work(actions, 'user-workflow.json');
+await work.load(); // 加载历史记录（如果有的话）
 
 await work.step({
-  id: 'processData',
-  action: 'processData',
-  options: {
-    message: '$ref.getData.message'
-  }
+  id: 'step1',
+  action: 'fetchUser',
+  options: { userId: '123' }  // 使用固定参数
 });
-
-// 工作流结果会自动保存在 my-workflow.json
 ```
+
+**2. 第二个地方：继续构建工作流**
+```typescript
+// 加载之前的工作流
+const work = new Work(actions, 'user-workflow.json');
+await work.load(); // 加载包含 step1 步骤的工作流
+
+// 添加处理步骤
+await work.step({
+  id: 'processUser',
+  action: 'processUser',
+  options: { user: '$ref.step1.user' }  // 引用上一步的结果
+});
+
+// 添加报告生成步骤
+await work.step({
+  id: 'createReport',
+  action: 'generateReport',
+  options: { processed: '$ref.processUser.processed' }  // 引用上一步的结果
+});
+```
+
+**3. 第三个地方：执行工作流**
+```typescript
+// 加载完整的工作流
+const work = new Work(actions, 'user-workflow.json');
+await work.load();
+
+// 执行整个工作流，指定入口步骤和参数
+const history = await work.run({ 
+  entry: 'step1', 
+  entryOptions: { userId: '124' }  // 动态传入参数，会覆盖 step1 中的固定参数
+});
+```
+
+这个示例展示了 Runback 的核心特性：
+1. 可以在不同地方逐步构建工作流
+2. 每个步骤的结果可以被后续步骤引用
+3. 工作流状态会自动保存到文件
+4. 可以通过 `work.run()` 动态指定入口步骤和参数
 
 ## 特性
 
