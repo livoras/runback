@@ -1,6 +1,6 @@
 {
   "name": "runback",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "A progressive workflow execution library for Node.js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

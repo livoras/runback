@@ -150,6 +150,96 @@ Runback 支持将当前工作流状态保存到文件，稍后再恢复并继续
 - `work.load()` 方法从文件加载工作流状态
 - 保存的内容包括所有步骤定义和最后一次运行的历史记录
 
+## 控制流
+
+### 条件（if）
+
+Runback 支持通过 `type: 'if'` 来创建条件分支。条件步骤会返回一个布尔值，后续步骤可以通过 `depends` 属性指定在条件为 true 或 false 时执行。
+
+```typescript
+// 定义动作
+const actions = {
+  'fetchUser': async (options) => {
+    // 模拟从API获取用户数据
+    return { 
+      user: { 
+        id: options.userId, 
+        name: "John Doe",
+        role: "admin"  // 用户角色
+      } 
+    };
+  },
+  'checkPermission': async (options) => {
+    // 检查用户权限
+    return options.user.role === 'admin';
+  },
+  'processAdminTask': async (options) => {
+    // 处理管理员任务
+    return { 
+      message: `Admin ${options.user.name} processed task successfully` 
+    };
+  },
+  'handleNoPermission': async (options) => {
+    // 处理无权限情况
+    return { 
+      error: `User ${options.user.name} has no permission to perform this task` 
+    };
+  }
+};
+
+// 创建工作流
+const work = new Work(actions, 'permission-workflow.json');
+await work.load();
+
+// 1. 获取用户信息
+await work.step({
+  id: 'getUser',
+  action: 'fetchUser',
+  options: { userId: '123' }
+});
+
+// 2. 检查权限（条件步骤）
+await work.step({
+  id: 'checkPermission',
+  action: 'checkPermission',
+  options: { user: '$ref.getUser.user' },
+  type: 'if'  // 标记为条件步骤
+});
+
+// 3. 根据权限执行不同操作
+await work.step({
+  id: 'processAdminTask',
+  action: 'processAdminTask',
+  options: { user: '$ref.getUser.user' },
+  depends: ['checkPermission.true']  // 只在权限检查通过时执行
+});
+
+await work.step({
+  id: 'handleNoPermission',
+  action: 'handleNoPermission',
+  options: { user: '$ref.getUser.user' },
+  depends: ['checkPermission.false']  // 只在权限检查失败时执行
+});
+
+// 执行工作流，指定入口步骤
+await work.run({ entry: 'getUser' });
+```
+
+在这个例子中：
+1. `checkPermission` 步骤被标记为条件步骤（`type: 'if'`）
+2. 条件步骤会返回一个布尔值（true/false）
+3. 后续步骤通过 `depends` 属性指定在什么条件下执行：
+   - `checkPermission.true` 表示在条件为 true 时执行
+   - `checkPermission.false` 表示在条件为 false 时执行
+4. 工作流会根据条件自动选择执行路径
+
+### fork/join
+
+TODO
+
+### 数组处理（each）
+TODO
+
 
 ## 工作流构建模式
 
