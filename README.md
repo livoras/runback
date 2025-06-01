@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>灵活、可扩展的渐进式工作流框架</strong>
+  <strong>渐进式工作流框架</strong>
 </p>
 
 <p align="center">
@@ -16,6 +16,16 @@
   <a href="#api参考">API参考</a> •
   <a href="#最佳实践">最佳实践</a>
 </p>
+
+<div align="center">
+
+  ![CI](https://github.com/livoras/runback/actions/workflows/ci.yml/badge.svg)
+  ![GitHub last commit](https://img.shields.io/github/last-commit/livoras/confow)
+  <!-- ![Node.js Version](https://img.shields.io/badge/node-%3E%3D%2022-green)
+  ![Electron Version](https://img.shields.io/badge/electron-%3E%3D%2035-green) -->
+  <!-- ![npm Version](https://img.shields.io/badge/npm-%3E%3D%208-red) -->
+  
+</div>
 
 ## 简介
 
