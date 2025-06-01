@@ -551,16 +551,6 @@ interface RunOptions {
 }
 ```
 
-## 项目结构
-
-- `src/` - 源代码目录
-  - `work.ts` - 核心工作流引擎
-  - `workflow.ts` - 工作流执行器
-  - `ref.ts` - 引用处理
-- `examples/` - 示例代码
-- `docs/` - 文档
-- `dist/` - 编译输出目录
-
 ## 许可证
 
 MIT
