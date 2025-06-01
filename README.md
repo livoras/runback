@@ -35,6 +35,49 @@ Runback 是一个渐进式工作流框架，其核心理念是"结果即流程"�
 
 这种工作方式让你不需要过于关注编排本身，而是关注感兴趣的任意结果，以一种充满创造性的方式逐步构建流程。
 
+## 安装
+
+```bash
+npm install runback
+```
+
+## 快速开始
+
+```typescript
+import { Work } from 'runback';
+
+// 定义动作
+const actions = {
+  'fetchData': async () => {
+    return { message: "Hello, Runback!" };
+  },
+  'processData': async (options) => {
+    return { processed: options.message.toUpperCase() };
+  }
+};
+
+const work = new Work(actions, 'my-workflow.json');
+await work.load() // 从文件中加载历史运行记录和结果
+
+// 创建工作流
+// 添加并执行步骤
+await work.step({
+  id: 'getData',
+  action: 'fetchData',
+  options: {}
+});
+
+await work.step({
+  id: 'processData',
+  action: 'processData',
+  options: {
+    message: '$ref.getData.message'
+  }
+});
+
+// 工作流结果会自动保存在 my-workflow.json
+```
+
 ## 特性
 
 ### 1. 渐进式构建与执行
@@ -65,52 +108,6 @@ Runback 支持将当前工作流状态保存到文件，稍后再恢复并继续
 - `work.load()` 方法从文件加载工作流状态
 - 保存的内容包括所有步骤定义和最后一次运行的历史记录
 
-## 安装
-
-```bash
-npm install runback
-```
-
-## 快速开始
-
-```typescript
-import { Work } from 'runback';
-
-// 定义动作
-const actions = {
-  'fetchData': async () => {
-    return { message: "Hello, Runback!" };
-  },
-  'processData': async (options) => {
-    return { processed: options.message.toUpperCase() };
-  }
-};
-
-// 创建工作流
-const work = new Work(actions, 'my-workflow.json');
-
-// 添加并执行步骤
-await work.step({
-  id: 'getData',
-  action: 'fetchData',
-  options: {}
-});
-
-await work.step({
-  id: 'processData',
-  action: 'processData',
-  options: {
-    message: '$ref.getData.message'
-  }
-});
-
-// 查看结果
-console.log(work.lastRun.results.processData);
-// 输出: { processed: "HELLO, RUNBACK!" }
-
-// 保存工作流状态
-await work.save();
-```
 
 ## 工作流构建模式
 
@@ -252,7 +249,6 @@ class Work {
   // 状态管理
   async save(savePath?: string): Promise<void>;  // 保存工作流状态
   async load(path?: string): Promise<void>;  // 加载工作流状态
-  json(): any;  // 将工作流序列化为JSON
 }
 ```
 
@@ -279,14 +275,6 @@ interface RunOptions {
   onlyRuns?: string[];  // 只运行指定的步骤
 }
 ```
-
-## 最佳实践
-
-1. **为步骤指定有意义的ID**：使用描述性的ID有助于理解工作流结构
-2. **合理组织动作函数**：将相关功能封装到独立的动作中
-3. **定期保存工作流状态**：特别是在执行耗时步骤之前
-4. **使用条件执行**：通过 `condition` 属性控制步骤是否执行
-5. **利用迭代处理**：对数组数据使用 `each` 属性进行批量处理
 
 ## 项目结构
 
