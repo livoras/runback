@@ -13,8 +13,9 @@
   <a href="#安装">安装</a> •
   <a href="#快速开始">快速开始</a> •
   <a href="#工作流构建模式">工作流构建模式</a> •
-  <a href="#api参考">API参考</a> •
-  <a href="#最佳实践">最佳实践</a>
+  <a href="#运行工作流">运行工作流</a> •
+  <a href="#控制流">控制流</a> •
+  <a href="#api参考">API参考</a>
 </p>
 
 <div align="center">
