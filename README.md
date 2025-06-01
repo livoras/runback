@@ -223,7 +223,20 @@ await work.run({
 });
 ```
 
-### 3. Specified Step Execution
+### 3. Specifying Exit
+
+Use the `exit` parameter to specify the workflow's exit node. When the specified node is executed, the workflow stops immediately. This aligns with the "result as process" philosophy, allowing you to select any satisfactory result as the workflow endpoint.
+
+```typescript
+// Choose any step's satisfactory result as the workflow endpoint
+// Reverse-engineer the workflow execution path based on results
+await work.run({ 
+  entry: 'startProcess',
+  exit: 'generateImage'  // Workflow terminates here when this step's result meets requirements
+});
+```
+
+### 4. Specified Step Execution
 
 Use `onlyRuns` mode to directly specify which steps to run, without needing to specify an entry step. If these steps depend on data from other steps, the system will automatically load from history.
 
@@ -234,7 +247,7 @@ await work.run({
 });
 ```
 
-### 4. Breakpoint Execution
+### 5. Breakpoint Execution
 
 Use the `resume` parameter to load the complete context from the last run, allowing access to all results from the previous run when starting from any entry step. This is particularly useful for scenarios requiring continuation based on previous run results.
 
