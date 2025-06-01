@@ -3,13 +3,13 @@ import { RunHistoryRecord, RunOptions, Step, Workflow, WorkflowOptions } from ".
 import fs from 'fs-extra'
 
 export class Work {
-  public steps: Step[] = []
-  public lastRun: RunHistoryRecord | null = null
-  public stepsMap: Record<string, Step> = {}
+  private steps: Step[] = []
+  private lastRun: RunHistoryRecord | null = null
+  private stepsMap: Record<string, Step> = {}
 
   constructor(public actions?: Record<string, Function>, public savePath?: string) { }
 
-  public json() {
+  private json() {
     return { steps: Object.values(this.stepsMap), lastRun: this.lastRun }
   }
 
@@ -36,7 +36,7 @@ export class Work {
     this.init()
   }
 
-  public init() {
+  private init() {
     this.steps.forEach(step => {
       this.stepsMap[step.id] = step
     })
