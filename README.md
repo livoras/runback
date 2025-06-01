@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/runback-cropped.png" alt="Runback Logo" height="200">
+  <img src="https://github.com/livoras/runback/blob/main/images/runback-cropped.png" alt="Runback Logo" height="200">
 </p>
 
 <p align="center">
