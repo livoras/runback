@@ -233,13 +233,94 @@ await work.run({ entry: 'getUser' });
    - `checkPermission.false` 表示在条件为 false 时执行
 4. 工作流会根据条件自动选择执行路径
 
-### fork/join
-
-TODO
-
 ### 数组处理（each）
-TODO
 
+Runback 支持通过 `each` 属性对数组数据进行迭代处理。在迭代步骤中，可以使用 `$ref.$item` 引用当前迭代项，使用 `$ref.$index` 引用当前索引。
+
+```typescript
+// 定义动作
+const actions = {
+  'fetchUsers': async () => {
+    // 模拟从API获取用户列表
+    return { 
+      users: [
+        { id: '1', name: 'Alice', score: 85 },
+        { id: '2', name: 'Bob', score: 92 },
+        { id: '3', name: 'Charlie', score: 78 }
+      ]
+    };
+  },
+  'processUser': async (options) => {
+    // 处理单个用户数据
+    const { user, index } = options;
+    return {
+      id: user.id,
+      name: user.name,
+      grade: user.score >= 90 ? 'A' : user.score >= 80 ? 'B' : 'C',
+      rank: index + 1
+    };
+  },
+  'generateReport': async (options) => {
+    // 生成汇总报告
+    const { processedUsers } = options;
+    const gradeCount = {
+      A: processedUsers.filter(u => u.grade === 'A').length,
+      B: processedUsers.filter(u => u.grade === 'B').length,
+      C: processedUsers.filter(u => u.grade === 'C').length
+    };
+    return {
+      totalUsers: processedUsers.length,
+      gradeDistribution: gradeCount,
+      users: processedUsers
+    };
+  }
+};
+
+// 创建工作流
+const work = new Work(actions, 'user-processing.json');
+await work.load();
+
+// 1. 获取用户列表
+await work.step({
+  id: 'getUsers',
+  action: 'fetchUsers',
+  options: {}
+});
+
+// 2. 对每个用户进行处理
+await work.step({
+  id: 'processUsers',
+  action: 'processUser',
+  each: '$ref.getUsers.users',  // 遍历用户数组
+  options: {
+    user: '$ref.$item',        // 引用当前用户
+    index: '$ref.$index'       // 引用当前索引
+  }
+});
+
+// 3. 生成汇总报告
+await work.step({
+  id: 'createReport',
+  action: 'generateReport',
+  options: {
+    processedUsers: '$ref.processUsers'  // 引用处理后的用户数组
+  }
+});
+
+// 执行工作流
+await work.run({ entry: 'getUsers' });
+```
+
+在这个例子中：
+1. `processUsers` 步骤通过 `each` 属性指定要遍历的数组
+2. 在迭代步骤中：
+   - `$ref.$item` 引用当前正在处理的用户对象
+   - `$ref.$index` 引用当前处理的索引位置
+3. 迭代步骤的结果会自动合并为一个数组
+4. 后续步骤可以直接引用整个处理后的数组
+
+### fork/join
+TODO
 
 ## 工作流构建模式
 
