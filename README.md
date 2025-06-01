@@ -1,7 +1,7 @@
 # Runback
 
 <p align="center">
-  <img src="https://via.placeholder.com/200x200?text=Runback" alt="Runback Logo" width="200" height="200">
+  <img src="images/runback-cropped.png" alt="Runback Logo" width="200" height="200">
 </p>
 
 <p align="center">
