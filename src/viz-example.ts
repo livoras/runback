@@ -1,5 +1,5 @@
 import { Workflow } from './workflow';
-import { visualize, visualizeInBrowser } from './viz';
+import { visualize, visualizeWorkflow } from './viz';
 import { LogLevel } from './logger';
 
 // 创建一个示例工作流
@@ -46,5 +46,5 @@ if (require.main === module) {
   const path2 = visualize(workflowWithEach, './workflow-with-each.html');
   
   console.log('生成复杂工作流可视化并在浏览器中打开...');
-  visualizeInBrowser(complexWorkflow);
+  visualizeWorkflow(complexWorkflow);
 }

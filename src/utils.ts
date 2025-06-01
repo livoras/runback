@@ -32,6 +32,11 @@ export function getNodesAndEdges(workflow: Workflow) {
   // 创建边数据
   Object.entries(deps).forEach(([stepId, dependencies]) => {
     dependencies.forEach(dep => {
+      // 确保dep是字符串类型
+      if (typeof dep !== 'string') {
+        return; // 如果不是字符串，跳过处理
+      }
+      
       // 跳过特殊依赖 $item 和 $index
       if (dep.startsWith('$item') || dep.startsWith('$index')) {
         return;

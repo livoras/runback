@@ -7,3 +7,4 @@ coverage/
 .env.*.local 
 test.json
 test2.json
+*.tgz

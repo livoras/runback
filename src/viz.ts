@@ -1,7 +1,6 @@
 import { Workflow } from './workflow';
 import * as fs from 'fs';
 import * as path from 'path';
-import open from 'open';
 import { convertWorkflowToVisData } from './utils';
 
 /**
@@ -172,7 +171,7 @@ function generateHTML(visData: any): string {
 }
 
 /**
- * 将工作流可视化为HTML并保存到文件或打开浏览器
+ * 将工作流可视化为HTML并保存到文件
  * @param workflow 工作流对象
  * @param outputPath 输出文件路径，默认为当前目录下的workflow-viz.html
  * @returns 输出文件的完整路径
@@ -195,11 +194,11 @@ export function visualize(workflow: Workflow, outputPath?: string): string {
 }
 
 /**
- * 在浏览器中打开工作流可视化
+ * 可视化工作流并保存为HTML文件
  * @param workflow 工作流对象
- * @returns 临时文件路径
+ * @returns 生成的HTML文件路径
  */
-export function visualizeInBrowser(workflow: Workflow): string {
+export function visualizeWorkflow(workflow: Workflow): string {
   const visData = convertWorkflowToVisData(workflow);
   const html = generateHTML(visData);
   
@@ -209,9 +208,10 @@ export function visualizeInBrowser(workflow: Workflow): string {
   
   fs.writeFileSync(tempFile, html, 'utf8');
   
-  // 打开浏览器
-  open(tempFile);
+  // 保存文件
+  // 文件已保存到: tempFile
+  console.log(`可视化文件已保存到: ${tempFile}`);
   
-  console.log(`工作流可视化已在浏览器中打开`);
+  console.log(`工作流可视化文件已生成`);
   return tempFile;
 }

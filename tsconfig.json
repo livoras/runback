@@ -9,8 +9,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "moduleResolution": "node"
   },
-  "include": ["src/**/*", "examples/example-or.ts", "examples/example.ts"],
-  "exclude": ["node_modules", "**/*.test.ts"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts", "dist", "examples"]
 } 

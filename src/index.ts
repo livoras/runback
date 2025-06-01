@@ -1,32 +1,23 @@
-import { config } from 'dotenv';
+/**
+ * Runback - A progressive workflow execution library for Node.js
+ */
 
-// 加载环境变量
-config();
+// 导出主要的工作流组件
+export { Workflow, WorkflowOptions, Step, RunOptions, RunStatus } from './workflow';
+export { Work } from './work';
 
-export interface AppConfig {
-  name: string;
-  env: string;
-  port: number;
-  host: string;
-}
+// 导出引用相关功能
+export { RefKey, createRef, collect, inject, collectFromRefString } from './ref';
 
-export function getConfig(): AppConfig {
-  return {
-    name: process.env.APP_NAME || 'Runback',
-    env: process.env.APP_ENV || 'development',
-    port: parseInt(process.env.APP_PORT || '3000', 10),
-    host: process.env.APP_HOST || 'localhost',
-  };
-}
+// 导出日志相关功能
+export { Logger, LogLevel, createDefaultLogger } from './logger';
 
-export function hello(name: string): string {
-  const config = getConfig();
-  return `Hello, ${name}! Running on ${config.name} (${config.env})`;
-}
+// 导出代理创建功能
+export { createProxy } from './createProxy';
 
-if (require.main === module) {
-  const config = getConfig();
-  console.log(`Starting ${config.name} in ${config.env} mode`);
-  console.log(`Server will run on ${config.host}:${config.port}`);
-  console.log(hello('World'));
-} 
+// 导出工具函数
+export * from './utils';
+
+// 可视化相关导出
+export * from './viz';
+ 

@@ -1,31 +1,47 @@
 {
   "name": "runback",
   "version": "1.0.0",
-  "description": "A Node.js TypeScript project",
+  "description": "A progressive workflow execution library for Node.js",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest",
     "test:watch": "jest --watch"
   },
-  "keywords": [],
+  "keywords": [
+    "workflow",
+    "progressive",
+    "execution",
+    "typescript",
+    "nodejs"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.5.0",
     "fs-extra": "^11.3.0",
-    "open": "^10.1.2",
-    "typescript": "^5.3.3",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.24",
+    "@types/uuid": "^9.0.8",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "typescript": ">=4.0.0"
   }
 }
