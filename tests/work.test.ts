@@ -1,29 +1,31 @@
 import { Work } from '../src/work'
 import path from 'path'
 
-// 创建 mock 函数
-const mockEnsureDir = jest.fn().mockResolvedValue(undefined)
-const mockWriteFile = jest.fn().mockResolvedValue(undefined)
-const mockExists = jest.fn().mockResolvedValue(true)
-const mockReadFile = jest.fn().mockResolvedValue(JSON.stringify({
-  steps: [
-    { id: 'testStep', action: 'testAction', options: { test: 'value' } }
-  ],
-  lastRun: { results: { testStep: { success: true } } }
-}))
-
 // Mock fs-extra 模块
-jest.mock('fs-extra', () => ({
-  ensureDir: mockEnsureDir,
-  writeFile: mockWriteFile,
-  exists: mockExists,
-  readFile: mockReadFile
-}))
+jest.mock('fs-extra', () => {
+  // 在工厂函数内部创建 mock 函数
+  return {
+    ensureDir: jest.fn().mockResolvedValue(undefined),
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    exists: jest.fn().mockResolvedValue(true),
+    readFile: jest.fn().mockResolvedValue(JSON.stringify({
+      steps: [
+        { id: 'testStep', action: 'testAction', options: { test: 'value' } }
+      ],
+      lastRun: { results: { testStep: { success: true } } }
+    }))
+  }
+})
 
-// 导入被模拟的模块
-import fs from 'fs-extra'
+// 获取 mock 函数的引用
+const fs = require('fs-extra')
+const mockEnsureDir = fs.ensureDir as jest.Mock
+const mockWriteFile = fs.writeFile as jest.Mock
+const mockExists = fs.exists as jest.Mock
+const mockReadFile = fs.readFile as jest.Mock
 
 describe('Work', () => {
+
   // Mock actions for testing
   const mockActions = {
     fetchData: jest.fn().mockImplementation(() => {
@@ -206,7 +208,7 @@ describe('Work', () => {
       }, false)
       
       // Run the workflow
-      const history = await work.run({ actions: mockActions })
+      const history = await work.run({ actions: mockActions, entry: 'fetchData' })
       
       // Verify actions were called
       expect(mockActions.fetchData).toHaveBeenCalled()
@@ -224,7 +226,7 @@ describe('Work', () => {
       await work.step({ id: 'fetchData', action: 'fetchData', options: {} }, false)
       
       // Run without providing actions in options
-      await work.run({})
+      await work.run({ entry: 'fetchData' })
       
       expect(mockActions.fetchData).toHaveBeenCalled()
     })
