@@ -329,9 +329,9 @@ In this example:
    - `checkPermission.false` means execute when condition is false
 4. Workflow automatically selects execution path based on conditions
 
-### 2. Branch Convergence
+### 2. Branch Merge
 
-In conditional branching scenarios, Runback supports branch convergence via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
+In conditional branching scenarios, Runback supports branch merging via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
 
 ```typescript
 // 1. Get user info
@@ -364,7 +364,7 @@ await work.step({
   depends: ['checkStatus.false']  // Execute for inactive users
 });
 
-// 4. Branch convergence - Execute regardless of user status
+// 4. Branch merge - Execute regardless of user status
 await work.step({
   id: 'logUserActivity',
   action: 'logActivity',
@@ -386,8 +386,8 @@ await work.step({
 
 In this example:
 1. `logUserActivity` step executes after either `processActiveUser` or `sendWelcomeBack` completes
-2. Multiple dependency paths separated by commas implement branch convergence logic
-3. This approach flexibly handles parallel or conditional branch convergence scenarios
+2. Multiple dependency paths separated by commas implement branch merging logic
+3. This approach flexibly handles parallel or conditional branch merging scenarios
 
 ### 3. Array Processing (each)
 
@@ -546,9 +546,9 @@ In this example:
 3. When both `processA` and `processB` complete, `combine` step automatically executes
 4. No manual parallel and merge logic handling required
 
-### 5. Branch Convergence
+### 5. Branch Merge
 
-In conditional branching scenarios, Runback supports branch convergence via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
+In conditional branching scenarios, Runback supports branch merging via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
 
 ```typescript
 // Define actions
@@ -622,7 +622,7 @@ In this example:
    - `$ref.processAdmin.message,$ref.processNormalUser.message`
    - If user is admin, gets value from `processAdmin.message`
    - If user is normal, gets value from `processNormalUser.message`
-4. System automatically handles branch convergence without manual branch execution checking
+4. System automatically handles branch merging without manual branch execution checking
 
 ## API Reference
 
