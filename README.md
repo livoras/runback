@@ -390,11 +390,87 @@ await work.run({ entry: 'getData' });
 3. 当 `processA` 和 `processB` 都完成后，`combine` 步骤会自动执行
 4. 整个过程不需要手动处理并行和合并逻辑
 
-这种基于依赖的自动并行执行机制让工作流的构建变得简单直观：
-- 只需要关注步骤之间的依赖关系
-- 不需要手动管理并行执行
-- 不需要手动处理结果合并
-- 系统会自动处理执行顺序和并行性
+### 分支汇聚
+
+在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚。当使用逗号分隔多个引用时，系统会尝试按顺序获取这些值，返回第一个成功获取到的值。这个特性在处理条件分支的结果汇聚时特别有用。
+
+```typescript
+// 定义动作
+const actions = {
+  'checkUser': async (options) => {
+    // 检查用户状态
+    return options.userId === 'admin';
+  },
+  'processAdmin': async (options) => {
+    // 处理管理员逻辑
+    return { message: "管理员处理完成" };
+  },
+  'processNormalUser': async (options) => {
+    // 处理普通用户逻辑
+    return { message: "普通用户处理完成" };
+  },
+  'mergeResult': async (options) => {
+    // 合并处理结果
+    return {
+      finalMessage: options.result,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+// 创建工作流
+const work = new Work(actions, 'branch-workflow.json');
+await work.load();
+
+// 1. 检查用户类型（条件步骤）
+await work.step({
+  id: 'checkUser',
+  action: 'checkUser',
+  options: { userId: 'admin' },
+  type: 'if'
+});
+
+// 2. 根据用户类型处理（两个分支）
+await work.step({
+  id: 'processAdmin',
+  action: 'processAdmin',
+  options: {},
+  depends: ['checkUser.true']
+});
+
+await work.step({
+  id: 'processNormalUser',
+  action: 'processNormalUser',
+  options: {},
+  depends: ['checkUser.false']
+});
+
+// 3. 合并分支结果
+await work.step({
+  id: 'mergeResult',
+  action: 'mergeResult',
+  options: {
+    // 使用逗号分隔的引用，系统会返回第一个成功获取到的值
+    result: '$ref.processAdmin.message,$ref.processNormalUser.message'
+  }
+});
+
+// 执行工作流
+await work.run({ entry: 'checkUser' });
+```
+
+在这个例子中：
+1. `checkUser` 步骤根据用户ID返回 true/false
+2. 根据条件结果，会执行 `processAdmin` 或 `processNormalUser` 其中一个步骤
+3. `mergeResult` 步骤使用逗号分隔的引用：
+   - `$ref.processAdmin.message,$ref.processNormalUser.message`
+   - 如果用户是管理员，会获取到 `processAdmin.message` 的值
+   - 如果用户是普通用户，会获取到 `processNormalUser.message` 的值
+4. 系统会自动处理分支汇聚，不需要手动判断哪个分支被执行
+
+这种机制的优势：
+- 自动处理分支选择和结果获取
+- 自动处理分支不存在的情况
 
 ## 工作流构建模式
 
@@ -436,90 +512,6 @@ await work.step({
 // 一次性执行所有步骤
 const history = await work.run({ actions: work.actions });
 ```
-
-## 实际应用示例：数据处理管道
-
-```typescript
-// 定义动作
-const actions = {
-  'fetchData': async () => {
-    return { text: "Hello, World! This is a test." };
-  },
-  'tokenize': async (options) => {
-    return options.text.split(/\s+/);
-  },
-  'filter': async (word) => {
-    return word.word.replace(/[.,!?]/g, '');
-  },
-  'count': async (options) => {
-    return { 
-      word: options.word,
-      length: options.word.length
-    };
-  },
-  'summarize': async (options) => {
-    const lengths = options.items.map(item => item.length);
-    const total = lengths.reduce((sum, len) => sum + len, 0);
-    return {
-      wordCount: options.items.length,
-      averageLength: total / options.items.length,
-      words: options.items.map(item => item.word)
-    };
-  }
-};
-
-// 创建工作流
-const work = new Work(actions, 'text-processing.json');
-
-// 第一阶段：获取数据并分词
-await work.step({ id: 'getData', action: 'fetchData', options: {} });
-await work.step({
-  id: 'tokenize',
-  action: 'tokenize',
-  options: { text: '$ref.getData.text' }
-});
-
-// 保存当前状态
-await work.save();
-
-// 第二阶段：继续处理
-await work.load();
-
-// 对每个单词进行处理
-await work.step({
-  id: 'cleanWords',
-  action: 'filter',
-  each: '$ref.tokenize',
-  options: { word: '$ref.$item' }
-});
-
-// 统计每个单词的长度
-await work.step({
-  id: 'wordLengths',
-  action: 'count',
-  each: '$ref.cleanWords',
-  options: { word: '$ref.$item' }
-});
-
-// 生成汇总报告
-await work.step({
-  id: 'summary',
-  action: 'summarize',
-  options: { items: '$ref.wordLengths' }
-});
-
-// 查看最终结果
-console.log(work.lastRun.results.summary);
-```
-
-## 适用场景
-
-Runback 特别适合以下场景：
-
-1. **长时间运行的数据处理任务**：可以分阶段执行，中间可以暂停和恢复
-2. **需要人工干预的流程**：某些步骤可能需要人工审核或输入
-3. **探索性数据分析**：可以根据前面步骤的结果动态决定后续步骤
-4. **分布式任务处理**：不同的步骤可以在不同的时间或不同的机器上执行
 
 ## API参考
 
