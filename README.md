@@ -20,7 +20,7 @@
 <div align="center">
 
   ![CI](https://github.com/livoras/runback/actions/workflows/ci-test.yml/badge.svg)
-  ![GitHub last commit](https://img.shields.io/github/last-commit/livoras/confow)
+  ![GitHub last commit](https://img.shields.io/github/last-commit/livoras/runback)
   
 </div>
 
