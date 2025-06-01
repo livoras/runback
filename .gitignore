@@ -6,3 +6,4 @@ coverage/
 .env.local
 .env.*.local 
 test.json
+test2.json

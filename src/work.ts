@@ -43,13 +43,15 @@ export class Work {
   }
 
 
-  public async step(step: Step) {
+  public async step(step: Step, run: boolean = true) {
     this.stepsMap[step.id] = step
     const steps = Object.values(this.stepsMap)
-    const workflow = new Workflow({ steps })
-    const oldHistory: RunHistoryRecord[] = this.lastRun ? [this.lastRun] : []
-    const history = await workflow.run({ ...step.options, actions: this.actions, history: oldHistory, onlyRuns: [step.id] })
-    this.lastRun = history[history.length - 1]
+    if (run) {
+      const workflow = new Workflow({ steps })
+      const oldHistory: RunHistoryRecord[] = this.lastRun ? [this.lastRun] : []
+      const history = await workflow.run({ ...step.options, actions: this.actions, history: oldHistory, onlyRuns: [step.id] })
+      this.lastRun = history[history.length - 1]
+    }
     if (this.savePath) {
       await this.save(this.savePath)
     }

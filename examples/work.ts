@@ -18,42 +18,43 @@ import { Work } from '../src/work'
             console.log(letter.letter)
             return letter.letter + ' - done'
         }
-    }, 'test.json')
+    }, 'test2.json')
 
     await work.load()
 
 
-    // await work.step({
-    //     id: 'step1',
-    //     action: 'step1',
-    //     options: {
-    //         name: 'hello world'
-    //     }
-    // })
+    await work.step({
+        id: 'step1',
+        action: 'step1',
+        options: {
+            name: 'hello world'
+        }
+    }, false)
 
-    // await work.step({
-    //     id: 'step2',
-    //     action: 'step2',
-    //     options: { message: '$ref.step1.name' }
-    // })
+    await work.step({
+        id: 'step2',
+        action: 'step2',
+        options: { message: '$ref.step1.name' }
+    }, false)
 
-    // await work.step({
-    //     id: 'split',
-    //     action: 'split',
-    //     options: {
-    //         str: '$ref.step2.result.message'
-    //     }
-    // })
+    await work.step({
+        id: 'split',
+        action: 'split',
+        options: {
+            str: '$ref.step2.result.message'
+        }
+    }, false)
 
-    // await work.step({
-    //     id: 'every-letter',
-    //     action: 'every-letter',
-    //     each: "$ref.split",
-    //     options: {
-    //         letter: "$ref.$item"
-    //     }
-    // })
-    // console.dir(work.lastRun, { depth: null, colors: true })
+    await work.step({
+        id: 'every-letter',
+        action: 'every-letter',
+        each: "$ref.split",
+        options: {
+            letter: "$ref.$item"
+        }
+    }, false)
+
+    console.dir(work.lastRun, { depth: null, colors: true })
     console.log(work.steps)
     await work.run({ entry: 'step1', entryOptions: { name: 'It works!??' } })
     await work.run({ entry: 'split', entryOptions: { str: 'It works too!??' } })
