@@ -319,8 +319,82 @@ await work.run({ entry: 'getUsers' });
 3. 迭代步骤的结果会自动合并为一个数组
 4. 后续步骤可以直接引用整个处理后的数组
 
-### fork/join
-TODO
+### 并行和合并
+
+Runback 的步骤执行机制是基于依赖关系的自动并行执行。只要一个步骤的所有依赖步骤都完成了，这个步骤就会立即执行，不需要手动处理并行和合并逻辑。
+
+```typescript
+// 定义动作
+const actions = {
+  'fetchData': async () => {
+    // 模拟获取数据
+    return { data: "原始数据" };
+  },
+  'processA': async (options) => {
+    // 处理数据的方式 A
+    return { result: `A处理: ${options.data}` };
+  },
+  'processB': async (options) => {
+    // 处理数据的方式 B
+    return { result: `B处理: ${options.data}` };
+  },
+  'combineResults': async (options) => {
+    // 合并处理结果
+    return {
+      finalResult: `合并结果: ${options.resultA.result}, ${options.resultB.result}`
+    };
+  }
+};
+
+// 创建工作流
+const work = new Work(actions, 'parallel-workflow.json');
+await work.load();
+
+// 1. 获取数据
+await work.step({
+  id: 'getData',
+  action: 'fetchData',
+  options: {}
+});
+
+// 2. 并行处理数据（两个处理步骤都依赖 getData）
+await work.step({
+  id: 'processA',
+  action: 'processA',
+  options: { data: '$ref.getData.data' }
+});
+
+await work.step({
+  id: 'processB',
+  action: 'processB',
+  options: { data: '$ref.getData.data' }
+});
+
+// 3. 合并结果（依赖两个处理步骤）
+await work.step({
+  id: 'combine',
+  action: 'combineResults',
+  options: {
+    resultA: '$ref.processA',
+    resultB: '$ref.processB'
+  }
+});
+
+// 执行工作流
+await work.run({ entry: 'getData' });
+```
+
+在这个例子中：
+1. `processA` 和 `processB` 都依赖 `getData` 的结果
+2. 当 `getData` 完成后，`processA` 和 `processB` 会自动并行执行
+3. 当 `processA` 和 `processB` 都完成后，`combine` 步骤会自动执行
+4. 整个过程不需要手动处理并行和合并逻辑
+
+这种基于依赖的自动并行执行机制让工作流的构建变得简单直观：
+- 只需要关注步骤之间的依赖关系
+- 不需要手动管理并行执行
+- 不需要手动处理结果合并
+- 系统会自动处理执行顺序和并行性
 
 ## 工作流构建模式
 
