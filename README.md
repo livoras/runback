@@ -143,12 +143,7 @@ await work.run({
 
 ### 3. 状态持久化
 
-Runback 支持将当前工作流状态保存到文件，稍后再恢复并继续构建。
-
-**持久化机制**：
-- `work.save()` 方法将工作流状态保存到文件
-- `work.load()` 方法从文件加载工作流状态
-- 保存的内容包括所有步骤定义和最后一次运行的历史记录
+Runback 会自动保存工作流状态到文件，包括所有步骤定义和最后一次运行的历史记录。你可以随时通过 `work.load()` 方法从文件加载工作流状态，继续构建或执行。
 
 ## 控制流
 
@@ -525,7 +520,6 @@ class Work {
   async run(options: RunOptions): Promise<RunHistoryRecord[]>;  // 执行整个工作流
   
   // 状态管理
-  async save(savePath?: string): Promise<void>;  // 保存工作流状态
   async load(path?: string): Promise<void>;  // 加载工作流状态
 }
 ```
@@ -536,9 +530,11 @@ class Work {
 interface Step {
   id: string;  // 步骤唯一标识符
   action: string;  // 要执行的动作名称
-  options?: any;  // 传递给动作的参数
+  type?: "if";  // 步骤类型，'if' 表示条件步骤
+  name?: string;  // 步骤名称
+  options?: Record<string, any>;  // 传递给动作的参数
+  depends?: string[];  // 依赖的步骤
   each?: string;  // 用于迭代的数据引用
-  condition?: string;  // 执行条件
 }
 ```
 
@@ -551,6 +547,8 @@ interface RunOptions {
   actions?: Record<string, Function>;  // 可执行的动作
   history?: RunHistoryRecord[];  // 历史记录
   onlyRuns?: string[];  // 只运行指定的步骤
+  logLevel?: LogLevel;  // 日志级别
+  resume?: boolean;  // 是否恢复执行
 }
 ```
 
