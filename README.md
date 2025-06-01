@@ -145,9 +145,114 @@ await work.run({
 
 Runback 会自动保存工作流状态到文件，包括所有步骤定义和最后一次运行的历史记录。你可以随时通过 `work.load()` 方法从文件加载工作流状态，继续构建或执行。
 
+## 工作流构建模式
+
+Runback 支持两种工作流构建模式：
+
+### 1. 渐进式构建模式
+
+通过 `work.step(step, true)` 添加步骤并立即执行，这样可以一步一步地构建和执行工作流，每一步都会立即产生结果，可以根据当前结果决定下一步操作。
+
+```typescript
+// 添加并立即执行步骤
+await work.step({
+  id: 'getData',
+  action: 'fetchData',
+  options: {}
+}, true); // true 是默认值，可以省略
+```
+
+### 2. 编排构建模式
+
+通过 `work.step(step, false)` 添加步骤但不立即执行，这样可以先定义整个工作流的结构，然后再通过 `work.run()` 一次性执行所有步骤。
+
+```typescript
+// 只添加步骤，不立即执行
+await work.step({
+  id: 'getData',
+  action: 'fetchData',
+  options: {}
+}, false);
+
+await work.step({
+  id: 'processData',
+  action: 'processData',
+  options: {
+    message: '$ref.getData.message'
+  }
+}, false);
+
+// 一次性执行所有步骤，必须指定入口步骤
+await work.run({ 
+  entry: 'getData',  // 指定入口步骤
+  actions: work.actions 
+});
+```
+
+## 运行工作流
+
+### 1. 指定运行起点
+
+Runback 支持从任意步骤开始运行工作流。通过 `work.run({ entry: 'stepId' })` 指定入口步骤，系统会自动执行该步骤及其所有依赖步骤。
+
+```typescript
+// 从 step1 开始运行
+await work.run({ 
+  entry: 'step1'  // 必须指定入口步骤
+});
+
+// 从 processData 开始运行
+await work.run({ 
+  entry: 'processData'  // 可以从任意步骤开始
+});
+```
+
+### 2. 运行参数
+
+通过 `entryOptions` 可以在运行时动态覆盖入口步骤的参数。这对于需要根据不同场景调整参数的情况特别有用。
+
+```typescript
+// 定义步骤时使用固定参数
+await work.step({
+  id: 'step1',
+  action: 'fetchUser',
+  options: { userId: '123' }  // 固定参数
+});
+
+// 运行时覆盖参数
+await work.run({ 
+  entry: 'step1',
+  entryOptions: { userId: '456' }  // 动态参数会覆盖固定参数
+});
+```
+
+### 3. 指定步骤运行
+
+使用 `onlyRuns` 模式可以指定只运行特定的步骤。如果这些步骤依赖其他步骤的数据，系统会自动从历史记录中加载。
+
+```typescript
+// 只运行特定的步骤
+await work.run({ 
+  entry: 'step1',
+  onlyRuns: ['processData', 'generateReport']  // 只运行这两个步骤
+});
+```
+
+### 4. 断点运行
+
+通过 `resume` 参数可以加载上次运行的完整上下文，这样从任意入口步骤开始运行时，都可以访问到上次运行的所有结果。这对于需要基于上次运行结果继续处理的情况特别有用。
+
+```typescript
+// 可以从上次运行结果中的任意步骤开始
+await work.run({ 
+  entry: 'processData', 
+  resume: true // 使用上次运行的数据
+});
+```
+
 ## 控制流
 
-### 条件（if）
+### 1. 条件（if）
 
 Runback 支持通过 `type: 'if'` 来创建条件分支。条件步骤会返回一个布尔值，后续步骤可以通过 `depends` 属性指定在条件为 true 或 false 时执行。
 
@@ -228,7 +333,7 @@ await work.run({ entry: 'getUser' });
    - `checkPermission.false` 表示在条件为 false 时执行
 4. 工作流会根据条件自动选择执行路径
 
-### 数组处理（each）
+### 2. 数组处理（each）
 
 Runback 支持通过 `each` 属性对数组数据进行迭代处理。在迭代步骤中，可以使用 `$ref.$item` 引用当前迭代项，使用 `$ref.$index` 引用当前索引。
 
@@ -314,7 +419,7 @@ await work.run({ entry: 'getUsers' });
 3. 迭代步骤的结果会自动合并为一个数组
 4. 后续步骤可以直接引用整个处理后的数组
 
-### 并行和合并
+### 3. 并行和合并
 
 Runback 的步骤执行机制是基于依赖关系的自动并行执行。只要一个步骤的所有依赖步骤都完成了，这个步骤就会立即执行，不需要手动处理并行和合并逻辑。
 
@@ -385,7 +490,7 @@ await work.run({ entry: 'getData' });
 3. 当 `processA` 和 `processB` 都完成后，`combine` 步骤会自动执行
 4. 整个过程不需要手动处理并行和合并逻辑
 
-### 分支汇聚
+### 4. 分支汇聚
 
 在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚。当使用逗号分隔多个引用时，系统会尝试按顺序获取这些值，返回第一个成功获取到的值。这个特性在处理条件分支的结果汇聚时特别有用。
 
@@ -462,50 +567,6 @@ await work.run({ entry: 'checkUser' });
    - 如果用户是管理员，会获取到 `processAdmin.message` 的值
    - 如果用户是普通用户，会获取到 `processNormalUser.message` 的值
 4. 系统会自动处理分支汇聚，不需要手动判断哪个分支被执行
-
-## 工作流构建模式
-
-Runback 支持两种工作流构建模式：
-
-### 渐进式构建模式
-
-通过 `work.step(step, true)` 添加步骤并立即执行，这样可以一步一步地构建和执行工作流，每一步都会立即产生结果，可以根据当前结果决定下一步操作。
-
-```typescript
-// 添加并立即执行步骤
-await work.step({
-  id: 'getData',
-  action: 'fetchData',
-  options: {}
-}, true); // true 是默认值，可以省略
-```
-
-### 编排构建模式
-
-通过 `work.step(step, false)` 添加步骤但不立即执行，这样可以先定义整个工作流的结构，然后再通过 `work.run()` 一次性执行所有步骤。
-
-```typescript
-// 只添加步骤，不立即执行
-await work.step({
-  id: 'getData',
-  action: 'fetchData',
-  options: {}
-}, false);
-
-await work.step({
-  id: 'processData',
-  action: 'processData',
-  options: {
-    message: '$ref.getData.message'
-  }
-}, false);
-
-// 一次性执行所有步骤，必须指定入口步骤
-await work.run({ 
-  entry: 'getData',  // 指定入口步骤
-  actions: work.actions 
-});
-```
 
 ## API参考
 
