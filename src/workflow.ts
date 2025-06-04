@@ -229,13 +229,27 @@ export class Workflow {
       
       const depends = step.depends ?? []
       const optionsDeps = collectFromRefString(step.options || {})
-      const deps = [...depends, ...Object.values(optionsDeps)] as (string | string[])[] 
+      
+      // 处理逗号分隔的依赖：将 'stepA,stepB' 转换为 ['stepA', 'stepB']
+      const processedDepends: (string | string[])[] = []
+      for (const dep of depends) {
+        if (dep.includes(',')) {
+          // 如果包含逗号，分割成数组（OR关系）
+          processedDepends.push(dep.split(',').map(d => d.trim()))
+        } else {
+          // 单个依赖保持原样
+          processedDepends.push(dep)
+        }
+      }
+      
+      const deps = [...processedDepends, ...Object.values(optionsDeps)] as (string | string[])[] 
       if (step.each) {
         // 如果 each 是数组，不添加依赖
         if (typeof step.each === 'string') {
           deps.push(step.each.replace("$ref.", ''))
         }
       }
+      
       this.checkDepsValid(deps, idsSet, step.id)
       this.deps[step.id] = deps
     }
@@ -269,6 +283,31 @@ export class Workflow {
       this.logger.setLevel(options.logLevel)
     }
     
+    // 处理运行模式：确定入口点和过滤步骤
+    let entrySteps: string[] = []
+    let filteredSteps: Step[] = stepsNotRun
+    
+    if (options?.onlyRuns?.length) {
+      // onlyRuns 模式：直接指定要运行的步骤
+      this.logger.info(`Running only specified steps: ${options.onlyRuns?.join(', ')}`);
+    } else if (options?.entry) {
+      // entry 模式：从指定入口开始
+      entrySteps = [options.entry]
+      this.logger.info(`Entry-driven execution: starting from ${options.entry}`)
+    } else if (options?.exit) {
+      // exit 模式：通过反查根节点确定入口，并过滤出路径上的步骤
+      entrySteps = this.getRootSteps(options.exit)
+      const pathSteps = this.getPathSteps(options.exit)
+      filteredSteps = stepsNotRun.filter(step => pathSteps.includes(step.id))
+      this.logger.info(`Exit-driven execution: found root steps for ${options.exit}`, entrySteps)
+      this.logger.info(`Exit-driven execution: filtering to path steps`, pathSteps)
+    } else {
+      throw new Error('Must specify either entry, exit, or onlyRuns in run options')
+    }
+    
+    // 更新 stepsNotRun 为过滤后的步骤
+    stepsNotRun = filteredSteps
+    
     const record = createRunningRecord()
     const history = options?.history || []
     let ctx: any = {}
@@ -277,12 +316,8 @@ export class Workflow {
       let setKeys: Set<string> = new Set()
       ctx = this.createContext(setKeys)
       
-      // 如果指定了 onlyRuns，从历史记录恢复上下文
+      // 如果指定了 onlyRuns 或 resume，从历史记录恢复上下文
       if (options?.onlyRuns?.length || options?.resume) {
-        if (options?.onlyRuns?.length) {
-          this.logger.info(`Running only specified steps: ${options.onlyRuns?.join(', ')}`);
-        }
-
         if (options?.resume) {
           this.logger.info('Resuming workflow execution');
         }
@@ -290,14 +325,14 @@ export class Workflow {
         if (history.length > 0) {
           const lastRecord = history[history.length - 1];
           ctx = this.createContext(setKeys, lastRecord.context);
-          this.logger.debug('Restored context from history for onlyRuns mode', ctx);
+          this.logger.debug('Restored context from history', ctx);
         }
       }
       
       this.logger.info('Starting workflow execution')
       
       while (stepsNotRun.length > 0) {
-        const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys)
+        const readySteps = this.getAllRunnableSteps(options || {}, stepsNotRun, ctx, setKeys, entrySteps)
         if (readySteps.length === 0) {
           this.logger.info('No runnable steps, workflow execution completed')
           break
@@ -498,13 +533,14 @@ export class Workflow {
    * @param stepsNotRun 未运行的步骤列表
    * @param ctx 上下文
    * @param setKeys 已设置的键集合
+   * @param entrySteps 入口步骤列表（用于支持多入口点）
    * @returns 可运行的步骤列表
    */
-  getAllRunnableSteps(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>) {
+  getAllRunnableSteps(runOptions: RunOptions, stepsNotRun: Step[], ctx: any, setKeys: Set<string>, entrySteps: string[] = []) {
     // 创建依赖检查缓存，避免重复计算
     const depsCache = new Map<string, boolean>()
     
-    this.logger.debug('Checking runnable steps', { stepsCount: stepsNotRun.length })
+    this.logger.debug('Checking runnable steps', { stepsCount: stepsNotRun.length, entrySteps })
     
     // 如果指定了 onlyRuns，则跳过依赖检查，直接返回匹配的步骤
     if (runOptions.onlyRuns?.length) {
@@ -514,7 +550,7 @@ export class Workflow {
     
     const runnableSteps = stepsNotRun.filter(step => {
       // 入口步骤总是可运行的
-      if (step.id === runOptions?.entry) {
+      if (entrySteps.includes(step.id)) {
         if (runOptions.entryOptions) {
           // Merge entryOptions with existing options, with entryOptions taking precedence
           step.options = {
@@ -528,7 +564,12 @@ export class Workflow {
       
       const deps = this.deps[step.id]
       if (deps.length === 0) {
-        this.logger.warn(`Step ${step.id} has no dependencies but is not an entry step`)
+        // 对于没有依赖且不是入口步骤的情况，给出警告
+        if (entrySteps.length > 0) {
+          this.logger.warn(`Step ${step.id} has no dependencies but is not in entry steps`)
+        } else {
+          this.logger.warn(`Step ${step.id} has no dependencies but no entry specified`)
+        }
         return false
       }
       
@@ -638,6 +679,62 @@ export class Workflow {
     // 检查步骤是否存在
     const stepExists = this.options.steps.some(s => s.id === stepId)
     return stepExists ? stepId : null
+  }
+
+  /**
+   * 获取到达指定步骤所需的所有步骤（包括目标步骤本身）
+   * @param targetStepId 目标步骤ID
+   * @returns 包含所有必要步骤ID的数组
+   */
+  getPathSteps(targetStepId: string): string[] {
+    // 检查步骤是否存在
+    const step = this.options.steps.find(s => s.id === targetStepId)
+    if (!step) {
+      throw new Error(`Step ${targetStepId} not found`)
+    }
+
+    const visited = new Set<string>() // 防止循环依赖
+    const pathSteps = new Set<string>() // 使用Set避免重复
+
+    /**
+     * 递归查找路径上的步骤
+     * @param currentStepId 当前步骤ID
+     */
+    const findPathSteps = (currentStepId: string) => {
+      // 防止循环依赖
+      if (visited.has(currentStepId)) {
+        return
+      }
+      visited.add(currentStepId)
+
+      // 当前步骤本身也是路径的一部分
+      pathSteps.add(currentStepId)
+
+      const currentStepDeps = this.deps[currentStepId] || []
+      
+      // 递归查找每个依赖的步骤
+      currentStepDeps.forEach(dep => {
+        if (Array.isArray(dep)) {
+          // 处理数组形式的依赖（或关系）- 这里我们需要所有可能的分支
+          dep.forEach(d => {
+            const depStepId = this.extractStepIdFromDep(d)
+            if (depStepId) {
+              findPathSteps(depStepId)
+            }
+          })
+        } else {
+          // 处理字符串形式的依赖
+          const depStepId = this.extractStepIdFromDep(dep)
+          if (depStepId) {
+            findPathSteps(depStepId)
+          }
+        }
+      })
+    }
+
+    findPathSteps(targetStepId)
+    
+    return Array.from(pathSteps).sort() // 返回排序后的数组
   }
 
   json() {

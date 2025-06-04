@@ -81,21 +81,21 @@ export function getNodesAndEdges(workflow: Workflow) {
     if (currentStep && currentStep.each) {
       // 只有当 each 是字符串引用时才处理依赖关系
       if (typeof currentStep.each === 'string') {
-        const eachValue = currentStep.each.replace('$ref.', '');
-        const parts = eachValue.split('.');
-        const sourceId = parts[0];
-        
-        if (steps.some(s => s.id === sourceId)) {
-          edges.push({
-            from: sourceId,
-            to: stepId,
-            label: `each: ${eachValue}`,
-            arrows: 'to',
-            color: { color: '#9900FF' }, // 迭代依赖使用不同颜色
-            dashes: true,
-            font: { align: 'horizontal' }
-          });
-        }
+      const eachValue = currentStep.each.replace('$ref.', '');
+      const parts = eachValue.split('.');
+      const sourceId = parts[0];
+      
+      if (steps.some(s => s.id === sourceId)) {
+        edges.push({
+          from: sourceId,
+          to: stepId,
+          label: `each: ${eachValue}`,
+          arrows: 'to',
+          color: { color: '#9900FF' }, // 迭代依赖使用不同颜色
+          dashes: true,
+          font: { align: 'horizontal' }
+        });
+      }
       }
       // 如果 each 是数组，不需要创建依赖边，因为没有依赖关系
     }
