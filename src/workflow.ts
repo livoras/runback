@@ -561,6 +561,85 @@ export class Workflow {
     }
   }
 
+  /**
+   * 获取指定步骤的所有根步骤
+   * @param stepId 要查找根步骤的步骤ID
+   * @returns 包含所有根步骤ID的数组
+   */
+  getRootSteps(stepId: string): string[] {
+    // 检查步骤是否存在
+    const step = this.options.steps.find(s => s.id === stepId)
+    if (!step) {
+      throw new Error(`Step ${stepId} not found`)
+    }
+
+    const visited = new Set<string>() // 防止循环依赖
+    const rootSteps = new Set<string>() // 使用Set避免重复
+
+    /**
+     * 递归查找根步骤
+     * @param currentStepId 当前步骤ID
+     */
+    const findRoots = (currentStepId: string) => {
+      // 防止循环依赖
+      if (visited.has(currentStepId)) {
+        return
+      }
+      visited.add(currentStepId)
+
+      const currentStepDeps = this.deps[currentStepId] || []
+      
+      // 如果当前步骤没有依赖，它就是根步骤
+      if (currentStepDeps.length === 0) {
+        rootSteps.add(currentStepId)
+        return
+      }
+
+      // 递归查找每个依赖的根步骤
+      currentStepDeps.forEach(dep => {
+        if (Array.isArray(dep)) {
+          // 处理数组形式的依赖（或关系）
+          dep.forEach(d => {
+            const rootStepId = this.extractStepIdFromDep(d)
+            if (rootStepId) {
+              findRoots(rootStepId)
+            }
+          })
+        } else {
+          // 处理字符串形式的依赖
+          const rootStepId = this.extractStepIdFromDep(dep)
+          if (rootStepId) {
+            findRoots(rootStepId)
+          }
+        }
+      })
+    }
+
+    findRoots(stepId)
+    
+    return Array.from(rootSteps).sort() // 返回排序后的数组
+  }
+
+  /**
+   * 从依赖字符串中提取步骤ID
+   * @param dep 依赖字符串，可能是 "stepId"、"stepId.property"、"stepId.true"、"stepId.false" 等
+   * @returns 提取出的步骤ID，如果无效则返回null
+   */
+  private extractStepIdFromDep(dep: string): string | null {
+    // 跳过特殊依赖
+    if (dep.startsWith('$item') || dep.startsWith('$index')) {
+      return null
+    }
+
+    // 提取根步骤ID（取第一个点之前的部分）
+    const parts = dep.split('.')
+    const stepId = parts[0]
+    
+    // 检查步骤是否存在
+    const stepExists = this.options.steps.some(s => s.id === stepId)
+    return stepExists ? stepId : null
+  }
+
   json() {
     // TODO
   }
