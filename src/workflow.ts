@@ -10,7 +10,7 @@ export type Step = {
   name?: string,
   options?: Record<string, any>,
   depends?: string[],
-  each?: string,
+  each?: string | any[],
 }
 
 export type WorkflowOptions = {
@@ -231,7 +231,10 @@ export class Workflow {
       const optionsDeps = collectFromRefString(step.options || {})
       const deps = [...depends, ...Object.values(optionsDeps)] as (string | string[])[] 
       if (step.each) {
-        deps.push(step.each.replace("$ref.", ''))
+        // 如果 each 是数组，不添加依赖
+        if (typeof step.each === 'string') {
+          deps.push(step.each.replace("$ref.", ''))
+        }
       }
       this.checkDepsValid(deps, idsSet, step.id)
       this.deps[step.id] = deps
@@ -391,8 +394,18 @@ export class Workflow {
   private async executeEachStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord) {
     this.logger.debug(`Preparing to execute iteration step: ${step.id}`)
     
-    const each = step.each!.replace("$ref.", '')
-    const list = getByPath(ctx, each)
+    let list: any[]
+    
+    if (Array.isArray(step.each)) {
+      // 如果 each 是数组，直接使用这个数组
+      list = step.each
+      this.logger.debug(`Using direct array for iteration step ${step.id}`, { items: list.length })
+    } else {
+      // 如果 each 是字符串，从上下文中获取
+      const each = step.each!.replace("$ref.", '')
+      list = getByPath(ctx, each)
+      this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list?.length })
+    }
 
     const inputs: any = []
     stepRecord.inputs = inputs
@@ -401,18 +414,25 @@ export class Workflow {
     stepRecord.outputs = results
     
     if (!Array.isArray(list)) {
-      const errorMsg = `Data source ${each} for iteration step ${step.id} is not an array`
+      const errorMsg = `Data source for iteration step ${step.id} is not an array`
       this.logger.error(errorMsg, list)
       throw new Error(errorMsg)
     }
-    
-    this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list.length })
 
     await Promise.all(list.map(async (item: any, index: number) => {
       this.logger.debug(`Executing item ${index} of iteration step ${step.id}`)
-      const itemOptions = this.prepareEachItemOptions(step, ctx, item, index)
-      inputs.push(itemOptions)
-      const result = itemOptions ? await action(itemOptions) : await action()
+      
+      let actionParam: any
+      if (step.options) {
+        // 如果有 options，按原来的逻辑处理
+        actionParam = this.prepareEachItemOptions(step, ctx, item, index)
+      } else {
+        // 如果没有 options，直接使用 item 作为参数
+        actionParam = item
+      }
+      
+      inputs.push(actionParam)
+      const result = actionParam !== undefined ? await action(actionParam) : await action()
       this.logger.debug(`Result of item ${index} for iteration step ${step.id}`, result)
       results.push(result)
     }))
