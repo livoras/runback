@@ -190,6 +190,12 @@ await work.run({
 
 ## 运行工作流
 
+Runback 支持三种不同的执行模式：
+
+1. **入口驱动**：`run({ entry: 'stepId' })` - 从特定步骤开始，执行所有依赖
+2. **退出驱动**：`run({ exit: 'stepId' })` - 指定期望的最终结果，让系统找到最优路径
+3. **选择执行**：`run({ onlyRuns: [...] })` - 直接执行指定的步骤
+
 ### 1. 指定运行起点
 
 Runback 支持从任意步骤开始运行工作流。通过 `work.run({ entry: 'stepId' })` 指定入口步骤，系统会自动执行该步骤及其所有依赖步骤。
@@ -229,14 +235,44 @@ await work.run({
 
 通过 `exit` 参数指定工作流的结束节点。当执行到指定节点时，工作流立即停止。结合"结果即流程"的理念，当得到满意的结果时可以反推工作流。
 
+**退出驱动执行**：当只指定 `exit`（不指定 `entry`）时，Runback 会自动：
+1. **反向追踪依赖关系**，找到退出节点的所有根步骤
+2. **过滤执行路径**，只包含到达退出节点必需的步骤
+3. **从根步骤开始**，执行到退出节点为止
+
 ```typescript
-// 可以选择任意步骤的满意结果，将其作为工作流的终点
-// 基于结果倒推工作流的执行路径
+// 传统方式 - 同时指定入口和退出
 await work.run({ 
   entry: 'startProcess',
   exit: 'generateImage'  // 当这个步骤的结果满足需求时，工作流将在此终止
 });
+
+// 退出驱动方式 - 只指定退出，让系统找到路径
+await work.run({ 
+  exit: 'generateImage'  // 系统自动找到根步骤和执行路径
+});
+
+// 示例：包含多个分支的复杂工作流
+const workflow = new Workflow({
+  steps: [
+    { id: 'fetchData', action: 'fetchData' },
+    { id: 'processA', action: 'processA', depends: ['fetchData'] },
+    { id: 'processB', action: 'processB', depends: ['fetchData'] },
+    { id: 'unrelatedTask', action: 'unrelated', depends: ['fetchData'] }, // 不会运行
+    { id: 'mergeResults', action: 'merge', depends: ['processA', 'processB'] }
+  ]
+});
+
+// 只运行：fetchData -> processA -> processB -> mergeResults
+// 跳过：unrelatedTask（不在到达 mergeResults 的路径中）
+await workflow.run({ exit: 'mergeResults' });
 ```
+
+**主要优势**：
+- **高效执行**：只运行到达期望结果必需的步骤
+- **自动路径发现**：无需手动追踪依赖关系
+- **多根节点支持**：处理具有多个起始点的工作流
+- **"结果即流程"**：专注于期望的结果，让系统确定路径
 
 ### 4. 指定步骤运行
 
@@ -346,7 +382,10 @@ await work.run({ entry: 'getUser' });
 
 ### 2. 分支汇聚
 
-在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚，例如 `$ref.step1.result,$ref.step2.result`
+在条件分支场景中，Runback 支持通过依赖语法来实现分支汇聚。框架支持 **AND** 和 **OR** 两种关系：
+
+- **AND 关系**：`depends: ['stepA', 'stepB']` - 等待所有步骤完成
+- **OR 关系**：`depends: ['stepA,stepB']` - 等待任意步骤完成（单个字符串中用逗号分隔）
 
 ```typescript
 // 1. 获取用户信息
@@ -379,7 +418,7 @@ await work.step({
   depends: ['checkStatus.false']  // 用户不活跃时执行
 });
 
-// 4. 分支汇聚 - 无论用户是否活跃，都执行这个步骤
+// 4. 使用 OR 依赖的分支汇聚 - 任意前置步骤完成后执行
 await work.step({
   id: 'logUserActivity',
   action: 'logActivity',
@@ -387,7 +426,18 @@ await work.step({
     userId: '$ref.getUser.user.id',
     timestamp: new Date().toISOString()
   },
-  depends: ['processActiveUser', 'sendWelcomeBack']  // 任意一个前置步骤完成后执行
+  depends: ['processActiveUser,sendWelcomeBack']  // OR：任意一个步骤完成后执行
+});
+
+// 替代方案：AND 依赖 - 所有前置步骤完成后执行
+await work.step({
+  id: 'logAllActivity',
+  action: 'logAllActivity',
+  options: { 
+    userId: '$ref.getUser.user.id',
+    timestamp: new Date().toISOString()
+  },
+  depends: ['processActiveUser', 'sendWelcomeBack']  // AND：等待两个步骤都完成
 });
 
 // 5. 继续后续处理
@@ -400,9 +450,10 @@ await work.step({
 ```
 
 在这个例子中：
-1. `logUserActivity` 步骤会在 `processActiveUser` 或 `sendWelcomeBack` 任意一个步骤完成后执行
-2. 通过逗号分隔多个依赖路径，实现分支汇聚的逻辑
-3. 这种方式可以灵活地处理并行或条件分支的汇聚场景
+1. **条件执行**：根据状态只会执行 `processActiveUser` 或 `sendWelcomeBack` 其中一个
+2. **OR 合并**：`logUserActivity` 使用 `['processActiveUser,sendWelcomeBack']`（逗号分隔）在完成的分支结束后执行
+3. **AND 合并**：`logAllActivity` 使用 `['processActiveUser', 'sendWelcomeBack']`（分离的数组元素）等待两者都完成（虽然在条件场景中只会执行其中一个）
+4. **灵活合并**：条件分支选择 OR，并行执行场景选择 AND
 
 ### 3. 数组处理（each）
 
@@ -736,6 +787,7 @@ interface Step {
 ```typescript
 interface RunOptions {
   entry?: string;  // 入口步骤ID
+  exit?: string;  // 退出步骤ID，用于退出驱动执行
   entryOptions?: any;  // 入口步骤的参数
   actions?: Record<string, Function>;  // 可执行的动作
   history?: RunHistoryRecord[];  // 历史记录

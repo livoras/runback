@@ -188,6 +188,12 @@ await work.run({
 
 ## Running Workflows
 
+Runback supports three distinct execution modes:
+
+1. **Entry-driven**: `run({ entry: 'stepId' })` - Start from a specific step and execute all dependencies
+2. **Exit-driven**: `run({ exit: 'stepId' })` - Specify the desired end result and let the system find the optimal path
+3. **Selective**: `run({ onlyRuns: [...] })` - Execute only specific steps directly
+
 ### 1. Specifying Run Start Point
 
 Runback supports starting workflow execution from any step. Use `work.run({ entry: 'stepId' })` to specify the entry step, and the system will automatically execute that step and all its dependencies.
@@ -227,14 +233,44 @@ await work.run({
 
 Use the `exit` parameter to specify the workflow's exit node. When the specified node is executed, the workflow stops immediately. This aligns with the "result as process" philosophy, allowing you to select any satisfactory result as the workflow endpoint.
 
+**Exit-driven Execution**: When only `exit` is specified (without `entry`), Runback automatically:
+1. **Traces back dependencies** to find all root steps for the exit node
+2. **Filters execution path** to include only necessary steps to reach the exit
+3. **Starts from root steps** and executes until the exit node is reached
+
 ```typescript
-// Choose any step's satisfactory result as the workflow endpoint
-// Reverse-engineer the workflow execution path based on results
+// Traditional approach - specify both entry and exit
 await work.run({ 
   entry: 'startProcess',
   exit: 'generateImage'  // Workflow terminates here when this step's result meets requirements
 });
+
+// Exit-driven approach - specify only exit, let system find the path
+await work.run({ 
+  exit: 'generateImage'  // System automatically finds root steps and execution path
+});
+
+// Example: Complex workflow with multiple branches
+const workflow = new Workflow({
+  steps: [
+    { id: 'fetchData', action: 'fetchData' },
+    { id: 'processA', action: 'processA', depends: ['fetchData'] },
+    { id: 'processB', action: 'processB', depends: ['fetchData'] },
+    { id: 'unrelatedTask', action: 'unrelated', depends: ['fetchData'] }, // Won't run
+    { id: 'mergeResults', action: 'merge', depends: ['processA', 'processB'] }
+  ]
+});
+
+// Only runs: fetchData -> processA -> processB -> mergeResults
+// Skips: unrelatedTask (not in the path to mergeResults)
+await workflow.run({ exit: 'mergeResults' });
 ```
+
+**Key Benefits**:
+- **Efficient execution**: Only runs steps necessary to reach the desired result
+- **Automatic path discovery**: No need to manually trace dependencies
+- **Multiple root support**: Handles workflows with multiple starting points
+- **"Result as process"**: Focus on the desired outcome, let the system determine the path
 
 ### 4. Specified Step Execution
 
@@ -344,7 +380,10 @@ In this example:
 
 ### 2. Branch Merge
 
-In conditional branching scenarios, Runback supports branch merging via comma-separated reference paths, e.g., `$ref.step1.result,$ref.step2.result`
+In conditional branching scenarios, Runback supports branch merging via dependency syntax. The framework supports both **AND** and **OR** relationships:
+
+- **AND relationship**: `depends: ['stepA', 'stepB']` - Wait for ALL steps to complete
+- **OR relationship**: `depends: ['stepA,stepB']` - Wait for ANY step to complete (comma-separated in single string)
 
 ```typescript
 // 1. Get user info
@@ -377,7 +416,7 @@ await work.step({
   depends: ['checkStatus.false']  // Execute for inactive users
 });
 
-// 4. Branch merge - Execute regardless of user status
+// 4. Branch merge using OR dependency - Execute when ANY predecessor completes
 await work.step({
   id: 'logUserActivity',
   action: 'logActivity',
@@ -385,7 +424,18 @@ await work.step({
     userId: '$ref.getUser.user.id',
     timestamp: new Date().toISOString()
   },
-  depends: ['processActiveUser', 'sendWelcomeBack']  // Execute after either predecessor completes
+  depends: ['processActiveUser,sendWelcomeBack']  // OR: Execute after EITHER step completes
+});
+
+// Alternative: AND dependency - Execute when ALL predecessors complete
+await work.step({
+  id: 'logAllActivity',
+  action: 'logAllActivity',
+  options: { 
+    userId: '$ref.getUser.user.id',
+    timestamp: new Date().toISOString()
+  },
+  depends: ['processActiveUser', 'sendWelcomeBack']  // AND: Wait for BOTH steps
 });
 
 // 5. Continue processing
@@ -398,9 +448,10 @@ await work.step({
 ```
 
 In this example:
-1. `logUserActivity` step executes after either `processActiveUser` or `sendWelcomeBack` completes
-2. Multiple dependency paths separated by commas implement branch merging logic
-3. This approach flexibly handles parallel or conditional branch merging scenarios
+1. **Conditional execution**: Only one of `processActiveUser` or `sendWelcomeBack` will execute based on status
+2. **OR merge**: `logUserActivity` uses `['processActiveUser,sendWelcomeBack']` (comma-separated) to execute when the completed branch finishes
+3. **AND merge**: `logAllActivity` uses `['processActiveUser', 'sendWelcomeBack']` (separate array elements) to wait for both (though only one will actually execute in conditional scenarios)
+4. **Flexible merging**: Choose OR for conditional branches, AND for parallel execution scenarios
 
 ### 3. Array Processing (each)
 
@@ -734,6 +785,7 @@ interface Step {
 ```typescript
 interface RunOptions {
   entry?: string;  // Entry step ID
+  exit?: string;  // Exit step ID for exit-driven execution
   entryOptions?: any;  // Entry step parameters
   actions?: Record<string, Function>;  // Executable actions
   history?: RunHistoryRecord[];  // History records
