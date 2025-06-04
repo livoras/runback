@@ -404,7 +404,14 @@ In this example:
 
 ### 3. Array Processing (each)
 
-Runback supports array data iteration via the `each` property. In iteration steps, use `$ref.$item` to reference the current iteration item and `$ref.$index` to reference the current index.
+Runback supports array data iteration via the `each` property. The `each` field supports two forms:
+
+1. **Reference form**: `each: '$ref.stepId.arrayProperty'` - References array data from previous steps
+2. **Direct array form**: `each: [...]` - Uses a literal array directly
+
+In iteration steps, use `$ref.$item` to reference the current iteration item and `$ref.$index` to reference the current index.
+
+#### Using Reference Arrays
 
 ```typescript
 // Define actions
@@ -480,13 +487,64 @@ await work.step({
 await work.run({ entry: 'getUsers' });
 ```
 
-In this example:
-1. `processUsers` step specifies array to iterate over via `each` property
-2. In iteration step:
-   - `$ref.$item` references current user object
-   - `$ref.$index` references current index position
-3. Iteration step results automatically merge into an array
-4. Subsequent steps can directly reference the entire processed array
+#### Using Direct Arrays
+
+You can also use arrays directly in the `each` field without referencing previous step results:
+
+```typescript
+// Define actions
+const actions = {
+  'processItem': async (item) => {
+    // When no options are provided, the item is passed directly as parameter
+    return `processed-${item}`;
+  },
+  'processWithOptions': async (options) => {
+    // When options are provided, use the original behavior
+    return `processed-${options.value}-with-index-${options.index}`;
+  }
+};
+
+// Create workflow
+const work = new Work(actions, 'direct-array-workflow.json');
+await work.load();
+
+// 1. Process items directly with array - no options, item passed as parameter
+await work.step({
+  id: 'processItems',
+  action: 'processItem',
+  each: ['apple', 'banana', 'orange']  // Direct array, no dependency analysis needed
+  // No options - each item will be passed directly to the action
+});
+
+// 2. Process items with options
+await work.step({
+  id: 'processWithOptions',
+  action: 'processWithOptions',
+  each: [10, 20, 30],  // Direct array
+  options: {
+    value: '$ref.$item',    // Reference current item
+    index: '$ref.$index'    // Reference current index
+  }
+});
+
+// Execute workflow
+await work.run({ entry: 'processItems' });
+```
+
+#### Key Features:
+
+1. **Reference arrays**: `each: '$ref.stepId.arrayProperty'` - References array data from previous steps
+2. **Direct arrays**: `each: [...]` - Uses literal arrays directly, no dependency analysis required
+3. **Simplified parameter passing**: When no `options` are provided, the current item is passed directly as the action parameter
+4. **Standard parameter passing**: When `options` are specified, use `$ref.$item` and `$ref.$index` for current item and index
+5. **Automatic result merging**: Iteration step results automatically merge into an array
+6. **Subsequent references**: Later steps can directly reference the entire processed array
+
+In these examples:
+1. Direct arrays don't require dependency analysis and can be used immediately
+2. When no `options` are specified, each item is passed directly to the action function
+3. When `options` are specified, the traditional `$ref.$item` and `$ref.$index` references are used
+4. Both approaches support any data types: strings, numbers, objects, arrays, etc.
 
 ### 4. Parallel and Merge
 
@@ -667,7 +725,7 @@ interface Step {
   name?: string;  // Step name
   options?: Record<string, any>;  // Parameters passed to action
   depends?: string[];  // Dependent steps
-  each?: string;  // Data reference for iteration
+  each?: string | any[];  // Data reference for iteration or direct array
 }
 ```
 

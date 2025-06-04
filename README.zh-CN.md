@@ -227,7 +227,7 @@ await work.run({
 
 ### 3. 指定结束
 
-通过 `exit` 参数指定工作流的结束节点。当执行到指定节点时，工作流立即停止。结合“结果即流程”的理念，当得到满意的结果时可以反推工作流。
+通过 `exit` 参数指定工作流的结束节点。当执行到指定节点时，工作流立即停止。结合"结果即流程"的理念，当得到满意的结果时可以反推工作流。
 
 ```typescript
 // 可以选择任意步骤的满意结果，将其作为工作流的终点
@@ -406,7 +406,14 @@ await work.step({
 
 ### 3. 数组处理（each）
 
-Runback 支持通过 `each` 属性对数组数据进行迭代处理。在迭代步骤中，可以使用 `$ref.$item` 引用当前迭代项，使用 `$ref.$index` 引用当前索引。
+Runback 支持通过 `each` 属性对数组数据进行迭代处理。`each` 字段支持两种形式：
+
+1. **引用形式**：`each: '$ref.步骤ID.数组属性'` - 引用之前步骤的数组数据
+2. **直接数组形式**：`each: [...]` - 直接使用字面量数组
+
+在迭代步骤中，可以使用 `$ref.$item` 引用当前迭代项，使用 `$ref.$index` 引用当前索引。
+
+#### 使用引用数组
 
 ```typescript
 // 定义动作
@@ -482,15 +489,66 @@ await work.step({
 await work.run({ entry: 'getUsers' });
 ```
 
-在这个例子中：
-1. `processUsers` 步骤通过 `each` 属性指定要遍历的数组
-2. 在迭代步骤中：
-   - `$ref.$item` 引用当前正在处理的用户对象
-   - `$ref.$index` 引用当前处理的索引位置
-3. 迭代步骤的结果会自动合并为一个数组
-4. 后续步骤可以直接引用整个处理后的数组
+#### 使用直接数组
 
-### 3. 并行和合并
+你也可以直接在 `each` 字段中使用数组，而无需引用之前步骤的结果：
+
+```typescript
+// 定义动作
+const actions = {
+  'processItem': async (item) => {
+    // 当没有提供 options 时，item 会直接作为参数传递
+    return `processed-${item}`;
+  },
+  'processWithOptions': async (options) => {
+    // 当提供了 options 时，使用原有的行为
+    return `processed-${options.value}-with-index-${options.index}`;
+  }
+};
+
+// 创建工作流
+const work = new Work(actions, 'direct-array-workflow.json');
+await work.load();
+
+// 1. 直接使用数组处理项目 - 没有 options，item 直接作为参数传递
+await work.step({
+  id: 'processItems',
+  action: 'processItem',
+  each: ['apple', 'banana', 'orange']  // 直接数组，不需要依赖分析
+  // 没有 options - 每个 item 会直接传递给 action
+});
+
+// 2. 使用 options 处理项目
+await work.step({
+  id: 'processWithOptions',
+  action: 'processWithOptions',
+  each: [10, 20, 30],  // 直接数组
+  options: {
+    value: '$ref.$item',    // 引用当前项目
+    index: '$ref.$index'    // 引用当前索引
+  }
+});
+
+// 执行工作流
+await work.run({ entry: 'processItems' });
+```
+
+#### 主要特性：
+
+1. **引用数组**：`each: '$ref.步骤ID.数组属性'` - 引用之前步骤的数组数据
+2. **直接数组**：`each: [...]` - 直接使用字面量数组，不需要依赖分析
+3. **简化参数传递**：当没有提供 `options` 时，当前项目会直接作为 action 的参数传递
+4. **标准参数传递**：当提供了 `options` 时，使用 `$ref.$item` 和 `$ref.$index` 引用当前项目和索引
+5. **自动结果合并**：迭代步骤的结果会自动合并为一个数组
+6. **后续引用**：后续步骤可以直接引用整个处理后的数组
+
+在这些例子中：
+1. 直接数组不需要依赖分析，可以立即使用
+2. 当没有指定 `options` 时，每个项目会直接传递给 action 函数
+3. 当指定了 `options` 时，使用传统的 `$ref.$item` 和 `$ref.$index` 引用
+4. 两种方式都支持任意数据类型：字符串、数字、对象、数组等
+
+### 4. 并行和合并
 
 Runback 的步骤执行机制是基于依赖关系的自动并行执行。只要一个步骤的所有依赖步骤都完成了，这个步骤就会立即执行，不需要手动处理并行和合并逻辑。
 
@@ -561,7 +619,7 @@ await work.run({ entry: 'getData' });
 3. 当 `processA` 和 `processB` 都完成后，`combine` 步骤会自动执行
 4. 整个过程不需要手动处理并行和合并逻辑
 
-### 4. 分支合并
+### 5. 分支合并
 
 在条件分支场景中，Runback 支持通过逗号分隔的引用路径来实现分支汇聚。当使用条件分支（if）时，只会执行满足条件的分支，而合并节点会在任意一个分支完成时触发，不需要等待所有分支都完成。
 
@@ -669,7 +727,7 @@ interface Step {
   name?: string;  // 步骤名称
   options?: Record<string, any>;  // 传递给动作的参数
   depends?: string[];  // 依赖的步骤
-  each?: string;  // 用于迭代的数据引用
+  each?: string | any[];  // 用于迭代的数据引用或直接数组
 }
 ```
 
