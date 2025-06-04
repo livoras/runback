@@ -350,9 +350,9 @@ export class Workflow {
 
     try {
       if (step.each) {
-        await this.executeEachStep(step, action, ctx, stepRecord)
+        await this.executeEachStep(step, action, ctx, stepRecord, options)
       } else {
-        await this.executeNormalStep(step, action, ctx, stepRecord)
+        await this.executeNormalStep(step, action, ctx, stepRecord, options)
       }
       
       this.moveStepToRun(step, stepsNotRun, stepsRun)
@@ -365,9 +365,9 @@ export class Workflow {
     }
   }
   
-  private async executeNormalStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord) {
+  private async executeNormalStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord, runOptions?: RunOptions) {
     this.logger.debug(`Preparing to execute normal step: ${step.id}`)
-    const actionOption = this.prepareActionOptions(step, ctx)
+    const actionOption = this.prepareActionOptions(step, ctx, runOptions)
     this.logger.debug(`Options for step ${step.id}`, actionOption)
 
     stepRecord.inputs = actionOption
@@ -388,7 +388,7 @@ export class Workflow {
     return result
   }
   
-  private async executeEachStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord) {
+  private async executeEachStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord, runOptions?: RunOptions) {
     this.logger.debug(`Preparing to execute iteration step: ${step.id}`)
     
     const each = step.each!.replace("$ref.", '')
@@ -410,7 +410,7 @@ export class Workflow {
 
     await Promise.all(list.map(async (item: any, index: number) => {
       this.logger.debug(`Executing item ${index} of iteration step ${step.id}`)
-      const itemOptions = this.prepareEachItemOptions(step, ctx, item, index)
+      const itemOptions = this.prepareEachItemOptions(step, ctx, item, index, runOptions)
       inputs.push(itemOptions)
       const result = itemOptions ? await action(itemOptions) : await action()
       this.logger.debug(`Result of item ${index} for iteration step ${step.id}`, result)
@@ -451,20 +451,26 @@ export class Workflow {
     return stringMapping
   }
 
-  private prepareActionOptions(step: Step, ctx: any) {
-    if (!step.options) return undefined
-    
-    const actionOption = clone(step.options)
+  private prepareActionOptions(step: Step, ctx: any, runOptions?: RunOptions) {
+    if (!step.options && !(runOptions?.entryOptions && runOptions.entry === step.id)) return undefined
+
+    const actionOption = clone(step.options || {})
+    if (runOptions?.entryOptions && runOptions.entry === step.id) {
+      Object.assign(actionOption, runOptions.entryOptions)
+    }
     const mapping = collectFromRefString(actionOption)
     const stringMapping = this.convertMappingToStringMapping(mapping, ctx)
     inject(actionOption, ctx, stringMapping)
     return actionOption
   }
   
-  private prepareEachItemOptions(step: Step, ctx: any, item: any, index: number) {
-    if (!step.options) return undefined
-    
-    const itemOptions = clone(step.options)
+  private prepareEachItemOptions(step: Step, ctx: any, item: any, index: number, runOptions?: RunOptions) {
+    if (!step.options && !(runOptions?.entryOptions && runOptions.entry === step.id)) return undefined
+
+    const itemOptions = clone(step.options || {})
+    if (runOptions?.entryOptions && runOptions.entry === step.id) {
+      Object.assign(itemOptions, runOptions.entryOptions)
+    }
     const mapping = collectFromRefString(itemOptions)
     const itemContext = { ...ctx, $item: item, $index: index }
     const stringMapping = this.convertMappingToStringMapping(mapping, itemContext)
@@ -495,13 +501,6 @@ export class Workflow {
     const runnableSteps = stepsNotRun.filter(step => {
       // 入口步骤总是可运行的
       if (step.id === runOptions?.entry) {
-        if (runOptions.entryOptions) {
-          // Merge entryOptions with existing options, with entryOptions taking precedence
-          step.options = {
-            ...(step.options || {}),
-            ...runOptions.entryOptions
-          };
-        }
         this.logger.debug(`Step ${step.id} is entry step, can run`)
         return true
       }

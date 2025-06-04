@@ -157,4 +157,22 @@ describe('Workflow with entryOptions', () => {
     // Non-entry step should keep original options
     expect(mockAction2).toHaveBeenCalledWith({ param: 'value2' });
   });
+
+  it('should not mutate step options after run', async () => {
+    const step = {
+      id: 'entryStep',
+      action: 'test',
+      options: { foo: 'bar' }
+    };
+    const mockAction = jest.fn((opts: any) => opts);
+    const workflow = new Workflow({ steps: [step] });
+    await workflow.run({
+      actions: { test: mockAction },
+      entry: 'entryStep',
+      entryOptions: { foo: 'baz' }
+    });
+
+    // Original options should remain unchanged
+    expect(step.options).toEqual({ foo: 'bar' });
+  });
 });
