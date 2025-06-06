@@ -123,7 +123,11 @@ export const inject = (to: any, from: any, mapping: Record<string, string>): voi
       if (typeof current === 'string') {
         if (current.startsWith('$ref.')) {
           // 处理逗号分隔的引用
-          const refs = current.split(',').map(ref => ref.replace(/^\s*\$ref\./, '').trim());
+          const refs = current.split(',').map(ref => {
+            const cleanRef = ref.replace(/^\s*\$ref\./, '').trim();
+            // 将数组索引语法转换为点号分隔的路径: [0] -> .0
+            return cleanRef.replace(/\[(\d+)\]/g, '.$1');
+          });
           if (refs.length > 1) {
             result[path.join('.')] = refs;
           } else {

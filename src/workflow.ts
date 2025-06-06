@@ -202,7 +202,14 @@ const isAllDepsMet = (deps: (string | string[])[], setKeys: Set<string>, cache: 
  * @returns 路径对应的值
  */
 const getByPath = (o: any, p: string) => {
-  return p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o)
+  return p.split('.').reduce((a, k) => {
+    if (a == null) return undefined
+    // 如果键是数字字符串且当前对象是数组，则转换为数字索引
+    if (Array.isArray(a) && /^\d+$/.test(k)) {
+      return a[parseInt(k, 10)]
+    }
+    return a[k]
+  }, o)
 }
 
 export class Workflow {
@@ -246,7 +253,10 @@ export class Workflow {
       if (step.each) {
         // 如果 each 是数组，不添加依赖
         if (typeof step.each === 'string') {
-          deps.push(step.each.replace("$ref.", ''))
+          let eachDep = step.each.replace("$ref.", '')
+          // 处理数组索引语法: [0] -> .0
+          eachDep = eachDep.replace(/\[(\d+)\]/g, '.$1')
+          deps.push(eachDep)
         }
       }
       
@@ -435,12 +445,14 @@ export class Workflow {
       // 如果 each 是数组，直接使用这个数组
       list = step.each
       this.logger.debug(`Using direct array for iteration step ${step.id}`, { items: list.length })
-    } else {
-      // 如果 each 是字符串，从上下文中获取
-      const each = step.each!.replace("$ref.", '')
-      list = getByPath(ctx, each)
-      this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list?.length })
-    }
+          } else {
+        // 如果 each 是字符串，从上下文中获取
+        let each = step.each!.replace("$ref.", '')
+        // 处理数组索引语法
+        each = each.replace(/\[(\d+)\]/g, '.$1')
+        list = getByPath(ctx, each)
+        this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list?.length })
+      }
 
     const inputs: any = []
     stepRecord.inputs = inputs
@@ -663,7 +675,7 @@ export class Workflow {
 
   /**
    * 从依赖字符串中提取步骤ID
-   * @param dep 依赖字符串，可能是 "stepId"、"stepId.property"、"stepId.true"、"stepId.false" 等
+   * @param dep 依赖字符串，可能是 "stepId"、"stepId.property" 等
    * @returns 提取出的步骤ID，如果无效则返回null
    */
   private extractStepIdFromDep(dep: string): string | null {
