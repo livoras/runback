@@ -45,7 +45,8 @@ export class Work {
 
   public async step(step: Step, run: boolean = true) {
     this.stepsMap[step.id] = step
-    const steps = Object.values(this.stepsMap)
+    this.steps = Object.values(this.stepsMap)
+    const steps = this.steps
     if (run) {
       const workflow = new Workflow({ steps })
       const oldHistory: RunHistoryRecord[] = this.lastRun ? [this.lastRun] : []

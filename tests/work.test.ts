@@ -137,13 +137,14 @@ describe('Work', () => {
   })
 
   describe('step', () => {
-    it('should add step to stepsMap', async () => {
+    it('should add step to stepsMap and update steps array', async () => {
       const work = new Work(mockActions)
       const step = { id: 'step1', action: 'fetchData', options: {} }
       
       await work.step(step, false)
       
       expect(work['stepsMap']).toEqual({ step1: step })
+      expect(work['steps']).toEqual([step])
     })
 
     it('should run the step when run=true', async () => {
