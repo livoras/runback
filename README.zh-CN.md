@@ -138,7 +138,24 @@ await work.run({
 **引用机制**：
 - 使用 `$ref.步骤ID.属性路径` 语法引用之前步骤的结果
 - 支持嵌套属性访问
+- **数组索引访问**：使用 `$ref.步骤ID[0].属性` 通过索引访问数组元素
+- 支持**多重数组索引**：`$ref.步骤ID[0].items[1].name`
 - 在循环中可以使用 `$ref.$item` 引用当前迭代项
+
+**数组索引示例**：
+```typescript
+// 访问数组中的第一个用户
+{ user: '$ref.getUserList[0]' }
+
+// 访问第二个用户的邮箱
+{ email: '$ref.getUserList[1].email' }
+
+// 访问嵌套数组元素
+{ value: '$ref.data[0].items[2].value' }
+
+// 与逗号分隔的备选项结合
+{ data: '$ref.primary[0].data,$ref.backup[1].data' }
+```
 
 ### 3. 状态持久化
 
@@ -577,6 +594,17 @@ await work.step({
   options: {
     value: '$ref.$item',    // 引用当前项目
     index: '$ref.$index'    // 引用当前索引
+  }
+});
+
+// 3. 使用数组索引语法处理特定数组元素
+await work.step({
+  id: 'processSpecificElements',
+  action: 'processSpecificData',
+  options: {
+    firstItem: '$ref.processItems[0]',      // 访问第一个处理后的项目
+    lastItem: '$ref.processWithOptions[2]', // 访问第三个处理后的项目
+    combined: '$ref.processItems[0],$ref.processWithOptions[1]' // 组合特定元素
   }
 });
 

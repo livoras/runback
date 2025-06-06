@@ -136,7 +136,24 @@ Each step's execution result is saved and can be referenced by subsequent steps 
 **Reference Mechanism**:
 - Use `$ref.stepId.propertyPath` syntax to reference previous step results
 - Supports nested property access
+- **Array index access**: Use `$ref.stepId[0].property` to access array elements by index
+- Support for **multiple array indexes**: `$ref.stepId[0].items[1].name`
 - Use `$ref.$item` to reference current iteration item in loops
+
+**Array Index Examples**:
+```typescript
+// Access first user in array
+{ user: '$ref.getUserList[0]' }
+
+// Access email of second user
+{ email: '$ref.getUserList[1].email' }
+
+// Access nested array elements
+{ value: '$ref.data[0].items[2].value' }
+
+// Combine with comma-separated fallbacks
+{ data: '$ref.primary[0].data,$ref.backup[1].data' }
+```
 
 ### 3. State Persistence
 
@@ -575,6 +592,17 @@ await work.step({
   options: {
     value: '$ref.$item',    // Reference current item
     index: '$ref.$index'    // Reference current index
+  }
+});
+
+// 3. Process specific array elements using array index syntax
+await work.step({
+  id: 'processSpecificElements',
+  action: 'processSpecificData',
+  options: {
+    firstItem: '$ref.processItems[0]',      // Access first processed item
+    lastItem: '$ref.processWithOptions[2]', // Access third processed item
+    combined: '$ref.processItems[0],$ref.processWithOptions[1]' // Combine specific elements
   }
 });
 
