@@ -106,13 +106,13 @@ describe('Workflow Each with Direct Array', () => {
     ]);
   });
 
-  test('should still work with options when provided', async () => {
-    const receivedOptions: any[] = [];
+  test('should ignore options when each is array', async () => {
+    const receivedItems: any[] = [];
     
     const actions = {
-      processWithOptions: (options: any) => {
-        receivedOptions.push(options);
-        return `processed-${options.value}-with-${options.suffix}`;
+      processWithOptions: (item: any) => {
+        receivedItems.push(item);
+        return `processed-${item}`;
       }
     };
 
@@ -136,15 +136,12 @@ describe('Workflow Each with Direct Array', () => {
       entry: 'processWithOptions'
     });
 
-    // 验证 options 处理
-    expect(receivedOptions).toEqual([
-      { value: 'item1', suffix: 'test', index: 0 },
-      { value: 'item2', suffix: 'test', index: 1 }
-    ]);
+    // 验证 options 被忽略，直接传递 item
+    expect(receivedItems).toEqual(['item1', 'item2']);
     expect(history[0].status).toBe('success');
     expect(history[0].steps.processWithOptions.outputs).toEqual([
-      'processed-item1-with-test',
-      'processed-item2-with-test'
+      'processed-item1',
+      'processed-item2'
     ]);
   });
 

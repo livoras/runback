@@ -451,6 +451,20 @@ export class Workflow {
   }
 
   /**
+   * 通用的引用解析函数，处理对象中的所有 $ref 引用
+   * @param obj 要处理的对象
+   * @param ctx 上下文
+   * @returns 解析后的对象
+   */
+  private resolveReferences(obj: any, ctx: any): any {
+    const clonedObj = clone(obj)
+    const mapping = collectFromRefString(clonedObj)
+    const stringMapping = this.convertMappingToStringMapping(mapping, ctx)
+    inject(clonedObj, ctx, stringMapping)
+    return clonedObj
+  }
+
+  /**
    * 解析单个引用值
    * @param value 可能是引用的值
    * @param ctx 上下文
@@ -461,6 +475,12 @@ export class Workflow {
       const refPath = this.parseRefPath(value)
       return getByPath(ctx, refPath)
     }
+    
+    // 如果是对象或数组，需要递归处理内部的引用
+    if (value && typeof value === 'object') {
+      return this.resolveReferences(value, ctx)
+    }
+    
     return value
   }
 
@@ -507,13 +527,18 @@ export class Workflow {
       this.logger.debug(`Executing item ${index} of iteration step ${step.id}`)
       
       let actionParam: any
-      if (step.options) {
-        // 如果有 options，按原来的逻辑处理
-        actionParam = this.prepareEachItemOptions(step, ctx, item, index)
-      } else {
-        // 如果没有 options，直接使用 item 作为参数
+      if (Array.isArray(step.each)) {
+        // 如果 each 是具体数组，忽略 options，直接用解析好的数据
         actionParam = item
+      } else {
+        // 如果 each 是字符串引用，才考虑用 options 模板
+        if (step.options) {
+          actionParam = this.prepareEachItemOptions(step, ctx, item, index)
+        } else {
+          actionParam = item
+        }
       }
+      
       
       inputs.push(actionParam)
       const result = actionParam !== undefined ? await action(actionParam) : await action()
@@ -538,6 +563,10 @@ export class Workflow {
       if (Array.isArray(value)) {
         // 对于数组形式的依赖，找到第一个满足条件的值
         const satisfiedValue = value.find(v => {
+          // 特殊处理 $item 和 $index
+          if (v === '$item' || v === '$index') {
+            return ctx[v] !== undefined
+          }
           const prefixes = getPrefixes(v)
           return prefixes.some(prefix => {
             const val = getByPath(ctx, prefix)
@@ -548,7 +577,12 @@ export class Workflow {
           stringMapping[key] = satisfiedValue
         }
       } else {
-        stringMapping[key] = value
+        // 特殊处理 $item 和 $index
+        if (value === '$item' || value === '$index') {
+          stringMapping[key] = value
+        } else {
+          stringMapping[key] = value
+        }
       }
     }
     this.logger.debug('-------->', stringMapping)
@@ -558,23 +592,17 @@ export class Workflow {
   private prepareActionOptions(step: Step, ctx: any) {
     if (!step.options) return undefined
     
-    const actionOption = clone(step.options)
-    const mapping = collectFromRefString(actionOption)
-    const stringMapping = this.convertMappingToStringMapping(mapping, ctx)
-    inject(actionOption, ctx, stringMapping)
-    return actionOption
+    return this.resolveReferences(step.options, ctx)
   }
   
   private prepareEachItemOptions(step: Step, ctx: any, item: any, index: number) {
     if (!step.options) return undefined
     
-    const itemOptions = clone(step.options)
-    const mapping = collectFromRefString(itemOptions)
     const itemContext = { ...ctx, $item: item, $index: index }
-    const stringMapping = this.convertMappingToStringMapping(mapping, itemContext)
-    inject(itemOptions, itemContext, stringMapping)
-    return itemOptions
+    return this.resolveReferences(step.options, itemContext)
   }
+
+
 
   /**
    * 获取所有可运行的步骤

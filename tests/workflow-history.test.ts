@@ -106,7 +106,7 @@ describe('Workflow History', () => {
           id: 'processItems',
           action: 'processItem',
           each: '$ref.getItems',
-          options: { item: '$item' },
+          options: { item: '$ref.$item' },
           depends: ['getItems']
         }
       ]
@@ -129,13 +129,14 @@ describe('Workflow History', () => {
     expect(history).toHaveLength(1)
     // Verify the results are stored in the context
     expect(history[0].context.processItems).toEqual([
-      'processed_$item',
-      'processed_$item'
+      'processed_data1',
+      'processed_data2'
     ])
     
     // Verify processItem was called with the expected arguments
     expect(processItemMock).toHaveBeenCalledTimes(2)
-    expect(processItemMock).toHaveBeenCalledWith({ item: '$item' })
+    expect(processItemMock).toHaveBeenCalledWith({ item: 'data1' })
+    expect(processItemMock).toHaveBeenCalledWith({ item: 'data2' })
   })
 
   it('should handle workflow without history option', async () => {
