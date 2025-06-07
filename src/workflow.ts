@@ -251,12 +251,16 @@ export class Workflow {
       
       const deps = [...processedDepends, ...Object.values(optionsDeps)] as (string | string[])[] 
       if (step.each) {
-        // 如果 each 是数组，不添加依赖
         if (typeof step.each === 'string') {
+          // 字符串形式的 each，直接添加依赖
           let eachDep = step.each.replace("$ref.", '')
           // 处理数组索引语法: [0] -> .0
           eachDep = eachDep.replace(/\[(\d+)\]/g, '.$1')
           deps.push(eachDep)
+        } else if (Array.isArray(step.each)) {
+          // 数组形式的 each，使用 collectFromRefString 来收集依赖
+          const eachDeps = collectFromRefString(step.each)
+          deps.push(...Object.values(eachDeps))
         }
       }
       
@@ -436,23 +440,56 @@ export class Workflow {
     return result
   }
   
+  /**
+   * 解析引用路径，处理 $ref. 前缀和数组索引语法
+   * @param refString 引用字符串
+   * @returns 处理后的路径字符串
+   */
+  private parseRefPath(refString: string): string {
+    let refPath = refString.replace("$ref.", '')
+    return refPath.replace(/\[(\d+)\]/g, '.$1')
+  }
+
+  /**
+   * 解析单个引用值
+   * @param value 可能是引用的值
+   * @param ctx 上下文
+   * @returns 解析后的实际值
+   */
+  private resolveRefValue(value: any, ctx: any): any {
+    if (typeof value === 'string' && value.startsWith('$ref.')) {
+      const refPath = this.parseRefPath(value)
+      return getByPath(ctx, refPath)
+    }
+    return value
+  }
+
+  /**
+   * 解析 each 中的引用并返回实际的列表
+   * @param each each 配置值
+   * @param ctx 上下文
+   * @returns 解析后的数组
+   */
+  private resolveEachList(each: string | any[], ctx: any): any[] {
+    if (Array.isArray(each)) {
+      // 如果 each 是数组，需要解析其中的引用
+      return each.map(item => this.resolveRefValue(item, ctx))
+    } else {
+      // 如果 each 是字符串，从上下文中获取
+      return this.resolveRefValue(each, ctx)
+    }
+  }
+
   private async executeEachStep(step: Step, action: Function, ctx: any, stepRecord: StepExecutionRecord) {
     this.logger.debug(`Preparing to execute iteration step: ${step.id}`)
     
-    let list: any[]
+    const list = this.resolveEachList(step.each!, ctx)
     
     if (Array.isArray(step.each)) {
-      // 如果 each 是数组，直接使用这个数组
-      list = step.each
-      this.logger.debug(`Using direct array for iteration step ${step.id}`, { items: list.length })
-          } else {
-        // 如果 each 是字符串，从上下文中获取
-        let each = step.each!.replace("$ref.", '')
-        // 处理数组索引语法
-        each = each.replace(/\[(\d+)\]/g, '.$1')
-        list = getByPath(ctx, each)
-        this.logger.debug(`Data source for iteration step ${step.id}`, { path: each, items: list?.length })
-      }
+      this.logger.debug(`Using processed array for iteration step ${step.id}`, { items: list.length })
+    } else {
+      this.logger.debug(`Data source for iteration step ${step.id}`, { path: this.parseRefPath(step.each!), items: list?.length })
+    }
 
     const inputs: any = []
     stepRecord.inputs = inputs
