@@ -131,7 +131,7 @@ step4.data[2].user.id         // 引用深层嵌套数组中的字段
 ### 基本结构
 ```javascript
 {
-  inputs: [ /* 输入数组 */ ],
+  input: [ /* 输入数组 */ ],
   ref: {
     "[]": "stepId.resultArray",           // 整体数组替换
     "[].field": "stepId.fieldArray[]",    // 字段数组映射（一对一）
@@ -172,12 +172,12 @@ context = {
 **一对一映射**（源端有 `[]`）：
 ```javascript
 ref: { "[].url": "getUrls.urls[]" }
-// 结果：inputs[0].url = "http://url1.com", inputs[1].url = "http://url2.com", inputs[2].url = "http://url3.com"
+// 结果：input[0].url = "http://url1.com", input[1].url = "http://url2.com", input[2].url = "http://url3.com"
 
 // 或者从数组元素中提取字段
 ref: { "[].url": "getUrls.urlObjects[].address" }
 // 如果 urlObjects = [{address: "http://url1.com"}, {address: "http://url2.com"}]
-// 结果：inputs[0].url = "http://url1.com", inputs[1].url = "http://url2.com"
+// 结果：input[0].url = "http://url1.com", input[1].url = "http://url2.com"
 ```
 
 **统一值设置**（源端无 `[]`）：
@@ -185,13 +185,13 @@ ref: { "[].url": "getUrls.urlObjects[].address" }
 ref: { "[].url": "getUrls.defaultUrl" }
 // 或者
 ref: { "[*].url": "getUrls.defaultUrl" }
-// 结果：所有 inputs[i].url = "http://default.com"
+// 结果：所有 input[i].url = "http://default.com"
 ```
 
 ### 1. 整体数组替换
 ```javascript
 {
-  inputs: [], // 原数组会被完全替换
+  input: [], // 原数组会被完全替换
   ref: {
     "[]": "getVideoList.result.videoList"  // 直接引用整个数组
   }
@@ -201,7 +201,7 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 ### 2. 数组字段映射（一对一）
 ```javascript
 {
-  inputs: [
+  input: [
     { url: "placeholder1", quality: "720p", format: "mp4", retryCount: 3 },
     { url: "placeholder2", quality: "1080p", format: "mp4", retryCount: 3 }
   ],
@@ -213,10 +213,10 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 }
 ```
 
-**结果**：数组元素一对一映射，url[0]→inputs[0].url，url[1]→inputs[1].url：
+**结果**：数组元素一对一映射，url[0]→input[0].url，url[1]→input[1].url：
 ```javascript
 {
-  inputs: [
+  input: [
     { url: "https://video1.com", quality: "HD", format: "mp4", retryCount: 3 },
     { url: "https://video2.com", quality: "4K", format: "mp4", retryCount: 3 }
   ]
@@ -226,7 +226,7 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 ### 3. 统一值设置
 ```javascript
 {
-  inputs: [
+  input: [
     { url: "video1.com", format: "mp4" },
     { url: "video2.com", format: "mp4" }
   ],
@@ -240,7 +240,7 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 **结果**：所有数组元素的指定字段都设置为相同值：
 ```javascript
 {
-  inputs: [
+  input: [
     { url: "video1.com", format: "newFormat", retryCount: 5 },
     { url: "video2.com", format: "newFormat", retryCount: 5 }
   ]
@@ -250,7 +250,7 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 ### 4. 特定索引设置
 ```javascript
 {
-  inputs: [
+  input: [
     { url: "video1.com", priority: "normal" },
     { url: "video2.com", priority: "high" },
     { url: "video3.com", priority: "normal" }
@@ -266,7 +266,7 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 ### 5. 多索引和范围设置
 ```javascript
 {
-  inputs: [/* 10个项目 */],
+  input: [/* 10个项目 */],
   ref: {
     "[0,2,4].category": "getOddCategory.result.oddCategory",     // 指定多个索引
     "[1,3,5].category": "getEvenCategory.result.evenCategory",
@@ -279,7 +279,7 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 ### 6. 嵌套对象数组（key 和 value 双向嵌套）
 ```javascript
 {
-  inputs: [
+  input: [
     {
       video: { url: "video1.com", meta: { title: "视频1" } },
       options: { quality: "720p", format: "mp4" }
@@ -320,7 +320,6 @@ ref: { "[*].url": "getUrls.defaultUrl" }
 | 目标语法 | 源端语法 | 说明 | 示例 |
 |----------|----------|------|------|
 | `[]` | `stepId.array` | 整体数组替换 | `"[]": "getVideoListStep.videoList"` |
-| `[]` | `stepId.array[]` | 整体数组替换（等价写法） | `"[]": "getVideoListStep.videoList[]"` |
 | `[].field` | `stepId.array[]` | 数组字段映射（一对一） | `"[].url": "getUrlsStep.urls[]"` |
 | `[].field` | `stepId.array[].key` | 数组元素字段提取（一对一） | `"[].url": "getUrlsStep.objects[].url"` |
 | `[].field` | `stepId.value` | 数组字段统一设置 | `"[].url": "getUrlsStep.defaultUrl"` |
@@ -373,7 +372,7 @@ ref: {
 ### 2. 数组长度动态调整
 ```javascript
 ref: {
-  "[]": "getItems.result.items",  // 根据引用数组的长度动态调整inputs数组
+  "[]": "getItems.result.items",  // 根据引用数组的长度动态调整input数组
   "[*].commonField": "getCommonValue.commonValue"
 }
 ```
@@ -399,7 +398,7 @@ ref: {
 ### 2. 数组索引越界
 ```javascript
 // ❌ 错误：索引超出范围
-"[5].url": "getUrlsStep.urls[0]"  // 如果inputs只有3个元素
+"[5].url": "getUrlsStep.urls[0]"  // 如果input只有3个元素
 
 // ✅ 正确：检查数组长度
 "[2].url": "getUrlsStep.urls[2]"
