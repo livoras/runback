@@ -255,7 +255,6 @@
 ### createTask 路径语法
 | 语法 | 说明 | 示例 |
 |------|------|------|
-| `"*"` | 整体替换 | `"*": "3031.processedData"` |
 | `field` | 简单字段 | `"userId": "3031.id"` |
 | `obj.field` | 嵌套对象 | `"user.name": "3031.userName"` |
 | `obj.arr[0]` | 数组索引 | `"items[0].name": "3031.firstName"` |
@@ -265,7 +264,6 @@
 ### createBatch 数组语法
 | 语法 | 说明 | 示例 |
 |------|------|------|
-| `"*"` | 整体替换 | `"*": "3031.processedArray"` |
 | `[]` | 整体数组替换 | `"[]": "3031.videoList"` |
 | `[].field` | 数组字段映射 | `"[].url": "3031.urls[]"` |
 | `[].nested.field` | 嵌套字段映射 | `"[].user.name": "3031.data[].profile.name"` |
@@ -295,59 +293,7 @@ ref: {
 
 ## 高级特性
 
-### 1. 整体替换
-
-使用通配符 `*` 可以将引用结果完全替换整个 input 对象：
-
-```javascript
-// 单个任务整体替换
-{
-  input: { /* 占位数据，会被完全替换 */ },
-  ref: {
-    "*": "3031.processedUserData"  // 直接用引用结果替换整个 input
-  }
-}
-```
-
-#### 使用场景
-
-**1. 数据完全传递**
-```javascript
-{
-  input: {},  // 空对象占位
-  ref: {
-    "*": "getUserProfile.result"  // 完全使用上游任务的结果
-  }
-}
-// 等效于：input = getUserProfile.result
-```
-
-**2. 结果转换**
-```javascript
-{
-  input: { placeholder: true },
-  ref: {
-    "*": "transformData.output"  // 使用转换后的数据结构
-  }
-}
-```
-
-**3. 备选数据源**
-```javascript
-{
-  input: { default: "fallback" },
-  ref: {
-    "*": "primarySource.data,backupSource.data,localCache.data"
-  }
-}
-```
-
-#### 注意事项
-- 整体替换会忽略 input 中的所有原始数据
-- 支持备选引用语法
-- 引用结果必须是对象类型（对于单个任务）或数组类型（对于批量任务）
-
-### 2. 条件引用（备选方案）
+### 1. 条件引用（备选方案）
 
 条件引用允许为单个字段指定多个备选的引用源，系统会按顺序尝试，使用第一个可用的值。这为系统提供了强大的容错能力和灵活性。
 
