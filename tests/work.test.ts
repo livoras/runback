@@ -84,7 +84,7 @@ describe('Work', () => {
       expect(mockEnsureDir).toHaveBeenCalledWith(path.dirname(savePath))
       expect(mockWriteFile).toHaveBeenCalledWith(
         savePath,
-        JSON.stringify({ steps: [], lastRun: null }, null, 2)
+        JSON.stringify({ version: 'v1', steps: [], lastRun: null }, null, 2)
       )
     })
 
@@ -98,7 +98,7 @@ describe('Work', () => {
       expect(mockEnsureDir).toHaveBeenCalledWith(path.dirname(providedPath))
       expect(mockWriteFile).toHaveBeenCalledWith(
         providedPath,
-        JSON.stringify({ steps: [], lastRun: null }, null, 2)
+        JSON.stringify({ version: 'v1', steps: [], lastRun: null }, null, 2)
       )
     })
   })
@@ -184,6 +184,7 @@ describe('Work', () => {
       const result = await work.step(step, false)
       
       expect(result).toEqual({
+        version: 'v1',
         steps: [step],
         lastRun: null
       })
@@ -243,6 +244,7 @@ describe('Work', () => {
       const json = work['json']()
       
       expect(json).toEqual({
+        version: 'v1',
         steps: [step],
         lastRun: { results: { step1: { success: true } } }
       })
