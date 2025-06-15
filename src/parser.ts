@@ -864,10 +864,22 @@ enum TokenType {
       throw new Error(`参数错误: ref 参数为空对象。\n建议: 提供至少一个引用映射，如 { "field": "taskId.path" }`);
     }
   
-    let result: any = {};
+        let result: any = {};
     const executor = new Executor(context);
     const parser = new Parser([]);
-  
+
+    // 检查是否使用了整体替换语法 "*"
+    if (ref['*']) {
+      try {
+        const resolvedValue = resolveReference(context, ref['*']);
+        // 整体替换允许返回任何值，包括 null、undefined、空对象等
+        return resolvedValue;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`整体替换失败: 无法解析引用 '*: ${ref['*']}'。\n错误详情: ${errorMessage}\n建议: 检查引用表达式语法和数据结构是否正确`);
+      }
+    }
+
     // 先处理数组初始化相关的映射
     const arrayMappings: Array<[string, any]> = [];
     const objectMappings: Array<[string, any]> = [];
@@ -876,10 +888,10 @@ enum TokenType {
       if (!refExpression || typeof refExpression !== 'string') {
         throw new Error(`参数错误: 引用表达式无效 - 键 '${keyPath}' 对应的值必须是字符串，但收到: ${typeof refExpression}。\n建议: 确保所有引用表达式都是有效的字符串格式，如 "taskId.field.subfield"`);
       }
-  
+
       try {
         const resolvedValue = resolveReference(context, refExpression);
-        if (resolvedValue !== undefined && resolvedValue !== null) {
+        if (resolvedValue !== undefined) {
           if (keyPath.startsWith('[')) {
             arrayMappings.push([keyPath, resolvedValue]);
           } else {

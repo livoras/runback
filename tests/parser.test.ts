@@ -689,7 +689,9 @@ describe('parseRefToInput', () => {
       const result = parseRefToInput(contextWithNullArray, ref);
 
       expect(result).toEqual({
+        firstItem: null,
         secondItem: { value: 'item2' },
+        nullValue: null,
         validValue: 3
       });
     });
@@ -1155,6 +1157,222 @@ describe('parseRefToInput', () => {
           }
         }
       });
+    });
+  });
+
+  describe('整体替换语法 (*)', () => {
+    test('单个任务整体替换', () => {
+      const ref = {
+        '*': '3031.user'
+      };
+
+      const result = parseRefToInput(mockContext, ref);
+
+      expect(result).toEqual({
+        id: 123,
+        name: '张三',
+        profile: {
+          email: 'zhangsan@example.com',
+          age: 30,
+          avatar: 'https://avatar.com/zhangsan.jpg',
+          highResAvatar: 'https://avatar.com/zhangsan_hd.jpg'
+        }
+      });
+    });
+
+    test('批量任务整体替换', () => {
+      // 使用独立的测试上下文，避免被其他测试修改
+      const independentContext = {
+        '3031': {
+          items: [
+            { id: 1, name: 'item1', status: 'active' },
+            { id: 2, name: 'item2', status: 'pending' },
+            { id: 3, name: 'item3', status: 'inactive' }
+          ]
+        }
+      };
+
+      const ref = {
+        '*': '3031.items'
+      };
+
+      const result = parseRefToInput(independentContext, ref);
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toEqual([
+        { id: 1, name: 'item1', status: 'active' },
+        { id: 2, name: 'item2', status: 'pending' },
+        { id: 3, name: 'item3', status: 'inactive' }
+      ]);
+    });
+
+    test('整体替换与备选引用结合', () => {
+      const ref = {
+        '*': '9999.nonexistent,3031.user.profile,2048.backup'
+      };
+
+      const result = parseRefToInput(mockContext, ref);
+
+      expect(result).toEqual({
+        email: 'zhangsan@example.com',
+        age: 30,
+        avatar: 'https://avatar.com/zhangsan.jpg',
+        highResAvatar: 'https://avatar.com/zhangsan_hd.jpg'
+      });
+    });
+
+    test('整体替换数据完全传递场景', () => {
+      const testContext = {
+        'getUserProfile': {
+          result: {
+            userId: 456,
+            userName: 'testUser',
+            email: 'test@example.com',
+            preferences: {
+              theme: 'dark',
+              language: 'zh'
+            }
+          }
+        }
+      };
+
+      const ref = {
+        '*': 'getUserProfile.result'
+      };
+
+      const result = parseRefToInput(testContext, ref);
+
+      expect(result).toEqual({
+        userId: 456,
+        userName: 'testUser',
+        email: 'test@example.com',
+        preferences: {
+          theme: 'dark',
+          language: 'zh'
+        }
+      });
+    });
+
+    test('整体替换结果转换场景', () => {
+      const testContext = {
+        'transformData': {
+          output: {
+            processedAt: '2024-01-01T00:00:00Z',
+            status: 'completed',
+            data: {
+              count: 100,
+              items: ['a', 'b', 'c']
+            }
+          }
+        }
+      };
+
+      const ref = {
+        '*': 'transformData.output'
+      };
+
+      const result = parseRefToInput(testContext, ref);
+
+      expect(result).toEqual({
+        processedAt: '2024-01-01T00:00:00Z',
+        status: 'completed',
+        data: {
+          count: 100,
+          items: ['a', 'b', 'c']
+        }
+      });
+    });
+
+    test('整体替换数组数据传递场景', () => {
+      const testContext = {
+        'getProcessList': {
+          items: [
+            { taskId: 'task1', priority: 'high', status: 'pending' },
+            { taskId: 'task2', priority: 'medium', status: 'running' },
+            { taskId: 'task3', priority: 'low', status: 'completed' }
+          ]
+        }
+      };
+
+      const ref = {
+        '*': 'getProcessList.items'
+      };
+
+      const result = parseRefToInput(testContext, ref);
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toEqual([
+        { taskId: 'task1', priority: 'high', status: 'pending' },
+        { taskId: 'task2', priority: 'medium', status: 'running' },
+        { taskId: 'task3', priority: 'low', status: 'completed' }
+      ]);
+    });
+
+    test('整体替换与其他字段组合', () => {
+      // 当使用 * 时，其他字段应该被忽略
+      const ref = {
+        '*': '3031.user',
+        'ignoredField': '3031.config.format'  // 这个应该被忽略
+      };
+
+      const result = parseRefToInput(mockContext, ref);
+
+      // 应该只包含整体替换的结果，忽略其他字段
+      expect(result).toEqual({
+        id: 123,
+        name: '张三',
+        profile: {
+          email: 'zhangsan@example.com',
+          age: 30,
+          avatar: 'https://avatar.com/zhangsan.jpg',
+          highResAvatar: 'https://avatar.com/zhangsan_hd.jpg'
+        }
+      });
+      
+      // 不应该包含 ignoredField
+      expect(result).not.toHaveProperty('ignoredField');
+    });
+
+    test('整体替换引用不存在时抛出异常', () => {
+      const ref = {
+        '*': '9999.nonexistent.data'
+      };
+
+      expect(() => parseRefToInput(mockContext, ref)).toThrow('字段错误: 字段 \'nonexistent\' 不存在');
+    });
+
+    test('整体替换备选引用全部失败时抛出异常', () => {
+      const ref = {
+        '*': '9999.nonexistent1,8888.nonexistent2,7777.nonexistent3'
+      };
+
+      expect(() => parseRefToInput(mockContext, ref)).toThrow('备选引用失败: 所有引用备选项都解析失败');
+    });
+
+    test('整体替换空值处理', () => {
+      const testContext = {
+        'emptyData': {
+          nullValue: null,
+          undefinedValue: undefined,
+          emptyObject: {},
+          emptyArray: []
+        }
+      };
+
+      // 测试 null 值
+      const ref1 = { '*': 'emptyData.nullValue' };
+      const result1 = parseRefToInput(testContext, ref1);
+      expect(result1).toBeNull();
+
+      // 测试空对象
+      const ref2 = { '*': 'emptyData.emptyObject' };
+      const result2 = parseRefToInput(testContext, ref2);
+      expect(result2).toEqual({});
+
+      // 测试空数组
+      const ref3 = { '*': 'emptyData.emptyArray' };
+      const result3 = parseRefToInput(testContext, ref3);
+      expect(result3).toEqual([]);
     });
   });
 
