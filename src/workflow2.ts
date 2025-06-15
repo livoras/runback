@@ -96,8 +96,9 @@ export class Workflow2 extends WorkflowEngine<Step2> {
 
   // 实现特殊依赖判断 - V2 特定
   protected isSpecialDependency(dep: string): boolean {
-    // V2可能有的特殊依赖（目前没有，但保留扩展性）
-    return false
+    // V2中，备选引用可能包含不存在的步骤，这是允许的
+    const stepId = dep.split('.')[0]
+    return !this.stepExists(stepId)
   }
 
   // 实现依赖满足判断 - V2 特定实现
@@ -140,14 +141,15 @@ export class Workflow2 extends WorkflowEngine<Step2> {
     return result
   }
 
-  // 实现选项访问抽象方法 - V2中不使用options概念
+  // 实现选项访问抽象方法 - V2中使用input代替options
   protected getStepOptions(step: Step2): any {
-    // V2没有options概念，返回undefined
-    return undefined
+    // V2使用input代替options
+    return step.input
   }
 
   protected setStepOptions(step: Step2, options: any): void {
-    // V2没有options概念，不做任何操作
+    // V2直接修改step.input，复用基类的通用entryOptions逻辑
+    step.input = options
   }
 
   // 实现步骤执行抽象方法 - V2 特定实现
@@ -157,6 +159,7 @@ export class Workflow2 extends WorkflowEngine<Step2> {
 
   protected prepareStepInput(step: Step2, ctx: any): any {
     // 使用V2的injectInput进行部分映射
+    // entryOptions已经通过基类的applyEntryOptions合并到step.input中
     return injectInput(step.input, step.ref || {}, ctx)
   }
 
