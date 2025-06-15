@@ -136,13 +136,67 @@ export abstract class WorkflowEngine<TStep = any> {
   protected abstract getAllSteps(): TStep[]
   protected abstract getStepId(step: TStep): string
   protected abstract parseDependencies(steps: TStep[]): void
-  protected abstract getAllRunnableSteps(
+  
+  // 可运行步骤判断的抽象方法
+  protected abstract isStepDependenciesSatisfied(step: TStep, setKeys: Set<string>, depsCache: Map<string, boolean>): boolean
+  protected abstract applyEntryOptions(step: TStep, entryOptions: any): void
+
+  // 通用的可运行步骤判断逻辑
+  protected getAllRunnableSteps(
     runOptions: RunOptions<TStep>, 
     stepsNotRun: TStep[], 
     ctx: any, 
     setKeys: Set<string>, 
-    entrySteps: string[]
-  ): TStep[]
+    entrySteps: string[] = []
+  ): TStep[] {
+    // 创建依赖检查缓存，避免重复计算
+    const depsCache = new Map<string, boolean>()
+    
+    this.logger.debug('Checking runnable steps', { stepsCount: stepsNotRun.length, entrySteps })
+    
+    // 如果指定了 onlyRuns，则跳过依赖检查，直接返回匹配的步骤
+    if (runOptions.onlyRuns?.length) {
+      this.logger.debug('Running in onlyRuns mode, skipping dependency checks');
+      return stepsNotRun.filter(step => runOptions.onlyRuns?.includes(this.getStepId(step)));
+    }
+    
+    const runnableSteps = stepsNotRun.filter(step => {
+      const stepId = this.getStepId(step)
+      
+      // 入口步骤总是可运行的
+      if (entrySteps.includes(stepId)) {
+        if (runOptions.entryOptions) {
+          this.applyEntryOptions(step, runOptions.entryOptions)
+        }
+        this.logger.debug(`Step ${stepId} is entry step, can run`)
+        return true
+      }
+      
+      const stepDeps = this.getStepDependencies(stepId)
+      if (stepDeps.length === 0) {
+        // 对于没有依赖且不是入口步骤的情况，给出警告
+        if (entrySteps.length > 0) {
+          this.logger.warn(`Step ${stepId} has no dependencies but is not in entry steps`)
+        } else {
+          this.logger.warn(`Step ${stepId} has no dependencies but no entry specified`)
+        }
+        return false
+      }
+      
+      // 使用子类实现的依赖满足判断
+      const canRun = this.isStepDependenciesSatisfied(step, setKeys, depsCache)
+      if (canRun) {
+        this.logger.debug(`Dependencies for step ${stepId} are satisfied, can run`)
+      } else {
+        this.logger.debug(`Dependencies for step ${stepId} are not satisfied, cannot run yet`, { deps: stepDeps })
+      }
+      
+      return canRun
+    })
+    
+    this.logger.debug('Found runnable steps', { count: runnableSteps.length })
+    return runnableSteps
+  }
   // 步骤执行抽象方法 - 子类实现语法特定的执行逻辑
   protected abstract isEachStep(step: TStep): boolean
   protected abstract prepareStepInput(step: TStep, ctx: any): any

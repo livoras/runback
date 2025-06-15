@@ -28,52 +28,7 @@ const getPrefixes = (path: string) => {
   return parts.map((_, i) => parts.slice(0, i + 1).join('.'))
 }
 
-/**
- * 检查所有依赖是否已满足
- * @param deps 依赖列表，每个依赖可以是字符串或字符串数组（表示"或"关系）
- * @param setKeys 已设置的键集合
- * @param cache 依赖检查缓存
- * @returns 是否所有依赖都已满足
- */
-const isAllDepsMet = (deps: (string | string[])[], setKeys: Set<string>, cache: Map<string, boolean> = new Map()) => {
-  // 如果没有依赖，直接返回 true
-  if (deps.length === 0) return true
-  
-  // 使用缓存键（依赖数组+setKeys大小）来检查是否有缓存结果
-  const cacheKey = `${JSON.stringify(deps)}:${setKeys.size}`
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey)!
-  }
-  
-  const result = deps.every(dep => {
-    // 如果是数组，表示"或"关系，只要满足其中一个即可
-    if (Array.isArray(dep)) {
-      return dep.some(d => {
-        // 特殊依赖：$item 和 $index 总是被视为已满足
-        if (d.startsWith("$item") || d.startsWith("$index")) {
-          return true
-        }
-        // 检查依赖的前缀路径是否已满足
-        const prefixes = getPrefixes(d)
-        return prefixes.some(prefix => setKeys.has(prefix))
-      })
-    }
-    
-    // 单个依赖的处理（原有逻辑）
-    // 特殊依赖：$item 和 $index 总是被视为已满足
-    if (dep.startsWith("$item") || dep.startsWith("$index")) {
-      return true
-    }
-    
-    // 检查依赖的前缀路径是否已满足
-    const prefixes = getPrefixes(dep)
-    return prefixes.some(prefix => setKeys.has(prefix))
-  })
-  
-  // 缓存结果
-  cache.set(cacheKey, result)
-  return result
-}
+
 
 /**
  * 根据路径获取对象中的值
@@ -180,56 +135,65 @@ export class Workflow extends WorkflowEngine<Step> {
    * @param entrySteps 入口步骤列表（用于支持多入口点）
    * @returns 可运行的步骤列表
    */
-  protected getAllRunnableSteps(runOptions: RunOptions<Step>, stepsNotRun: Step[], ctx: any, setKeys: Set<string>, entrySteps: string[] = []) {
-    // 创建依赖检查缓存，避免重复计算
-    const depsCache = new Map<string, boolean>()
+  // 实现可运行步骤判断的抽象方法 - V1 特定实现
+  protected isStepDependenciesSatisfied(step: Step, setKeys: Set<string>, depsCache: Map<string, boolean>): boolean {
+    const deps = this.deps[step.id]
+    return this.isAllDepsMet(deps, setKeys, depsCache)
+  }
+
+  /**
+   * 检查所有依赖是否已满足 - V1 特定实现
+   * @param deps 依赖列表，每个依赖可以是字符串或字符串数组（表示"或"关系）
+   * @param setKeys 已设置的键集合
+   * @param cache 依赖检查缓存
+   * @returns 是否所有依赖都已满足
+   */
+  private isAllDepsMet(deps: (string | string[])[], setKeys: Set<string>, cache: Map<string, boolean> = new Map()) {
+    // 如果没有依赖，直接返回 true
+    if (deps.length === 0) return true
     
-    this.logger.debug('Checking runnable steps', { stepsCount: stepsNotRun.length, entrySteps })
-    
-    // 如果指定了 onlyRuns，则跳过依赖检查，直接返回匹配的步骤
-    if (runOptions.onlyRuns?.length) {
-      this.logger.debug('Running in onlyRuns mode, skipping dependency checks');
-      return stepsNotRun.filter(step => runOptions.onlyRuns?.includes(step.id));
+    // 使用缓存键（依赖数组+setKeys大小）来检查是否有缓存结果
+    const cacheKey = `${JSON.stringify(deps)}:${setKeys.size}`
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey)!
     }
     
-    const runnableSteps = stepsNotRun.filter(step => {
-      // 入口步骤总是可运行的
-      if (entrySteps.includes(step.id)) {
-        if (runOptions.entryOptions) {
-          // Merge entryOptions with existing options, with entryOptions taking precedence
-          step.options = {
-            ...(step.options || {}),
-            ...runOptions.entryOptions
-          };
-        }
-        this.logger.debug(`Step ${step.id} is entry step, can run`)
+    const result = deps.every(dep => {
+      // 如果是数组，表示"或"关系，只要满足其中一个即可
+      if (Array.isArray(dep)) {
+        return dep.some(d => {
+          // 特殊依赖：$item 和 $index 总是被视为已满足
+          if (d.startsWith("$item") || d.startsWith("$index")) {
+            return true
+          }
+          // 检查依赖的前缀路径是否已满足
+          const prefixes = getPrefixes(d)
+          return prefixes.some(prefix => setKeys.has(prefix))
+        })
+      }
+      
+      // 单个依赖的处理（原有逻辑）
+      // 特殊依赖：$item 和 $index 总是被视为已满足
+      if (dep.startsWith("$item") || dep.startsWith("$index")) {
         return true
       }
       
-      const deps = this.deps[step.id]
-      if (deps.length === 0) {
-        // 对于没有依赖且不是入口步骤的情况，给出警告
-        if (entrySteps.length > 0) {
-          this.logger.warn(`Step ${step.id} has no dependencies but is not in entry steps`)
-        } else {
-          this.logger.warn(`Step ${step.id} has no dependencies but no entry specified`)
-        }
-        return false
-      }
-      
-      // 使用缓存检查依赖
-      const canRun = isAllDepsMet(deps, setKeys, depsCache)
-      if (canRun) {
-        this.logger.debug(`Dependencies for step ${step.id} are satisfied, can run`)
-      } else {
-        this.logger.debug(`Dependencies for step ${step.id} are not satisfied, cannot run yet`, { deps })
-      }
-      
-      return canRun
+      // 检查依赖的前缀路径是否已满足
+      const prefixes = getPrefixes(dep)
+      return prefixes.some(prefix => setKeys.has(prefix))
     })
     
-    this.logger.debug('Found runnable steps', { count: runnableSteps.length })
-    return runnableSteps
+    // 缓存结果
+    cache.set(cacheKey, result)
+    return result
+  }
+
+  protected applyEntryOptions(step: Step, entryOptions: any): void {
+    // Merge entryOptions with existing options, with entryOptions taking precedence
+    step.options = {
+      ...(step.options || {}),
+      ...entryOptions
+    };
   }
 
   // 实现步骤执行抽象方法 - V1 特定实现
