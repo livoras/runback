@@ -17,8 +17,8 @@ describe('Workflow with OR dependencies', () => {
       steps: [
         { id: "step1", action: "step1" },
         { id: "step2", action: "check", options: { list: "$ref.step1" }, type: "if" },
-        { id: "step3True", action: "step3", options: { list: "$ref.step1" }, depends: ["step2.true"] },
-        { id: "step3False", action: "step4", options: { list: "$ref.step1" }, depends: ["step2.false"] },
+        { id: "step3True", action: "step3", options: { list: "$ref.step1" , $depends: "$ref.step2.true"} },
+        { id: "step3False", action: "step4", options: { list: "$ref.step1" , $depends: "$ref.step2.false"} },
         { id: "step5", action: "step5", options: { message: "$ref.step3True, $ref.step3False" } },
       ]
     }, LogLevel.DEBUG)
@@ -110,8 +110,8 @@ describe('Workflow with OR dependencies', () => {
       steps: [
         { id: "step1", action: "step1" },
         { id: "step2", action: "check", options: { list: "$ref.step1" }, type: "if" },
-        { id: "step3True", action: "step3", options: { list: "$ref.step1" }, depends: ["step2.true"] },
-        { id: "step3False", action: "step4", options: { list: "$ref.step1" }, depends: ["step2.false"] },
+        { id: "step3True", action: "step3", options: { list: "$ref.step1" , $depends: "$ref.step2.true"} },
+        { id: "step3False", action: "step4", options: { list: "$ref.step1" , $depends: "$ref.step2.false"} },
         { id: "step5", action: "step5", options: { message: "$ref.step3True, $ref.step3False" } },
       ]
     }, LogLevel.DEBUG)
@@ -193,10 +193,10 @@ describe('Workflow with OR dependencies', () => {
       steps: [
         { id: "step1", action: "generateData" },
         { id: "step2", action: "checkLength", options: { data: "$ref.step1" }, type: "if" },
-        { id: "step3", action: "processData", options: { data: "$ref.step1" }, depends: ["step2.true"] },
-        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" }, type: "if", depends: ["step2.false"] },
-        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" }, depends: ["step3"] },
-        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" }, depends: ["step4.true"] },
+        { id: "step3", action: "processData", options: { data: "$ref.step1" , $depends: "$ref.step2.true"} },
+        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" , $depends: "$ref.step2.false"}, type: "if" },
+        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" , $depends: "$ref.step3"} },
+        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" , $depends: "$ref.step4.true"} },
         { id: "step7", action: "combineResults", options: { 
           message: "$ref.step3,$ref.step5,$ref.step6",
           data: "$ref.step1"
@@ -315,10 +315,10 @@ describe('Workflow with OR dependencies', () => {
       steps: [
         { id: "step1", action: "generateData" },
         { id: "step2", action: "checkLength", options: { data: "$ref.step1" }, type: "if" },
-        { id: "step3", action: "processData", options: { data: "$ref.step1" }, depends: ["step2.true"] },
-        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" }, type: "if", depends: ["step2.false"] },
-        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" }, depends: ["step3"] },
-        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" }, depends: ["step4.true"] },
+        { id: "step3", action: "processData", options: { data: "$ref.step1" , $depends: "$ref.step2.true"} },
+        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" , $depends: "$ref.step2.false"}, type: "if" },
+        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" , $depends: "$ref.step3"} },
+        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" , $depends: "$ref.step4.true"} },
         { id: "step7", action: "combineResults", options: { 
           message: "$ref.step3,$ref.step5,$ref.step6",
           data: "$ref.step1"
@@ -437,10 +437,10 @@ describe('Workflow with OR dependencies', () => {
       steps: [
         { id: "step1", action: "generateData" },
         { id: "step2", action: "checkLength", options: { data: "$ref.step1" }, type: "if" },
-        { id: "step3", action: "processData", options: { data: "$ref.step1" }, depends: ["step2.true"] },
-        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" }, type: "if", depends: ["step2.false"] },
-        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" }, depends: ["step3"] },
-        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" }, depends: ["step4.true"] },
+        { id: "step3", action: "processData", options: { data: "$ref.step1" , $depends: "$ref.step2.true"} },
+        { id: "step4", action: "checkNotEmpty", options: { data: "$ref.step1" , $depends: "$ref.step2.false"}, type: "if" },
+        { id: "step5", action: "furtherProcess", options: { data: "$ref.step3" , $depends: "$ref.step3"} },
+        { id: "step6", action: "processEmpty", options: { data: "$ref.step1" , $depends: "$ref.step4.true"} },
         { id: "step7", action: "combineResults", options: { 
           message: "$ref.step3,$ref.step5,$ref.step6",
           data: "$ref.step1"

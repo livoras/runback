@@ -37,7 +37,7 @@ describe('Workflow', () => {
         steps: [
           { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
           { id: "checkUserName", action: "checkUserName", options: { name: "$ref.getUserInfoId.name" }, type: "if" },
-          { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" } }, depends: ["checkUserName.true"] },
+          { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" }, $depends: "$ref.checkUserName.true" } },
           { id: "logId", action: "log", options: { message: "$ref.sayHiId.result" } },
         ]
       })
@@ -57,7 +57,7 @@ describe('Workflow', () => {
         steps: [
           { id: "getUserInfoId", action: "getUserInfo", options: { id: 123 } },
           { id: "checkUserName", action: "checkUserName", options: { name: "$ref.getUserInfoId.name" }, type: "if" },
-          { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" } }, depends: ["checkUserName.true"] },
+          { id: "sayHiId", action: "sayHi", options: { input: { name: "$ref.getUserInfoId.name" }, $depends: "$ref.checkUserName.true" } },
           { id: "logId", action: "log", options: { message: "$ref.sayHiId.result" } },
         ]
       })
@@ -93,9 +93,9 @@ describe('Workflow', () => {
       const wf = new Workflow({
         steps: [
           { id: "step0", action: "log", options: { "message": "step0" }},
-          { id: "step1", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step2", action: "delay", options: { ms: 50 }, depends: ["step0"] },
-          { id: "step3", action: "log", options: { message: ["$ref.step1", "$ref.step2"] }, depends: ["step1", "step2"] },
+          { id: "step1", action: "delay", options: { ms: 100 , $depends: "$ref.step0"} },
+          { id: "step2", action: "delay", options: { ms: 50 , $depends: "$ref.step0"} },
+          { id: "step3", action: "log", options: { message: ["$ref.step1", "$ref.step2"] , $depends: "$ref.step1,$ref.step2"} },
         ]
       })
 
@@ -104,7 +104,7 @@ describe('Workflow', () => {
       const endTime = Date.now()
 
       expect(endTime - startTime).toBeGreaterThanOrEqual(100) // 应该等待最长的延迟
-      expect(mockActions.log).toHaveBeenCalledWith({ message: ["delayed 100ms", "delayed 50ms"] })
+      expect(mockActions.log).toHaveBeenCalledWith({ message: ["delayed 100ms", "delayed 50ms"], $depends: expect.anything() })
     })
   })
 
@@ -242,8 +242,8 @@ describe('Workflow', () => {
       const wf = new Workflow({
         steps: [
           { id: 'condition', action: 'mock', type: 'if' },
-          { id: 'trueStep', action: 'mockTrue', depends: ['condition.true'] },
-          { id: 'falseStep', action: 'mockFalse', depends: ['condition.false'] }
+          { id: 'trueStep', action: 'mockTrue', options: { $depends: "$ref.condition.true" } },
+          { id: 'falseStep', action: 'mockFalse', options: { $depends: "$ref.condition.false" } }
         ]
       })
       await wf.run({ actions: { mock, mockTrue, mockFalse }, entry: 'condition' })
@@ -298,10 +298,10 @@ describe('Workflow', () => {
       const wf = new Workflow({
         steps: [
           { id: "step0", action: "log", options: { message: "step0" } },
-          { id: "step1", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step2", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step3", action: "delay", options: { ms: 100 }, depends: ["step0"] },
-          { id: "step4", action: "log", options: { message: ["$ref.step1", "$ref.step2", "$ref.step3"] }, depends: ["step1", "step2", "step3"] },
+          { id: "step1", action: "delay", options: { ms: 100 , $depends: "$ref.step0"} },
+          { id: "step2", action: "delay", options: { ms: 100 , $depends: "$ref.step0"} },
+          { id: "step3", action: "delay", options: { ms: 100 , $depends: "$ref.step0"} },
+          { id: "step4", action: "log", options: { message: ["$ref.step1", "$ref.step2", "$ref.step3"] , $depends: "$ref.step1,$ref.step2,$ref.step3"} },
         ]
       })
 
@@ -312,7 +312,8 @@ describe('Workflow', () => {
       // 由于并发执行，总时间应该接近最长的单个步骤时间，而不是所有步骤时间的总和
       expect(endTime - startTime).toBeLessThan(300)
       expect(mockActions.log).toHaveBeenCalledWith({
-        message: ["delayed 100ms", "delayed 100ms", "delayed 100ms"]
+        message: ["delayed 100ms", "delayed 100ms", "delayed 100ms"],
+        $depends: expect.anything()
       })
     })
   })

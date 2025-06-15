@@ -8,8 +8,8 @@ describe('Workflow dependency validation', () => {
       new Workflow({
         steps: [
           { id: 'step1', action: 'action1' },
-          { id: 'step2', action: 'action2', depends: ['step1'] },
-          { id: 'step3', action: 'action3', depends: ['step1', 'step2'] },
+          { id: 'step2', action: 'action2', options: { $depends: "$ref.step1" } },
+          { id: 'step3', action: 'action3', options: { $depends: "$ref.step1,$ref.step2" } },
           { id: 'step4', action: 'action4', options: { param: '$ref.step1' } },
         ]
       });
@@ -22,7 +22,7 @@ describe('Workflow dependency validation', () => {
       new Workflow({
         steps: [
           { id: 'step1', action: 'action1' },
-          { id: 'step2', action: 'action2', depends: ['nonExistentStep'] },
+          { id: 'step2', action: 'action2', options: { $depends: "$ref.nonExistentStep" } },
         ]
       });
     }).toThrow('Step step2 depends on non-existent step: nonExistentStep');
@@ -135,9 +135,9 @@ describe('Workflow dependency validation', () => {
       new Workflow({
         steps: [
           { id: 'step1', action: 'action1' },
-          { id: 'step2', action: 'action2', 
-            depends: ['nonExistentStep1'],
+          { id: 'step2', action: 'action2',
             options: { 
+              $depends: "$ref.nonExistentStep1",
               param1: '$ref.nonExistentStep2',
               param2: '$ref.nonExistentStep3'
             } 

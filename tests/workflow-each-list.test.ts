@@ -198,13 +198,13 @@ describe('Workflow Each with Direct Array', () => {
           id: 'processItems',
           action: 'processItem',
           each: ['a', 'b', 'c'],
-          depends: ['generate']
+          options: { $depends: "$ref.generate" }
         },
         {
           id: 'final',
           action: 'finalStep',
-          depends: ['processItems'],
           options: {
+            $depends: "$ref.processItems",
             processedData: '$ref.processItems'
           }
         }

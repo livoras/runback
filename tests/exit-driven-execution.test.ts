@@ -15,9 +15,9 @@ describe('Exit-driven Execution', () => {
     const workflow = new Workflow({
       steps: [
         { id: 'step1', action: 'action1' },
-        { id: 'step2', action: 'action2', depends: ['step1'] },
-        { id: 'step3', action: 'action3', depends: ['step2'] },
-        { id: 'step4', action: 'action4', depends: ['step1'] }
+        { id: 'step2', action: 'action2', options: { $depends: "$ref.step1" } },
+        { id: 'step3', action: 'action3', options: { $depends: "$ref.step2" } },
+        { id: 'step4', action: 'action4', options: { $depends: "$ref.step1" } }
       ]
     }, LogLevel.ERROR);
 
@@ -47,9 +47,9 @@ describe('Exit-driven Execution', () => {
       steps: [
         { id: 'rootA', action: 'actionA' },
         { id: 'rootB', action: 'actionB' },
-        { id: 'stepC', action: 'actionC', depends: ['rootA'] },
-        { id: 'stepD', action: 'actionD', depends: ['rootB'] },
-        { id: 'final', action: 'actionFinal', depends: ['stepC', 'stepD'] }
+        { id: 'stepC', action: 'actionC', options: { $depends: "$ref.rootA" } },
+        { id: 'stepD', action: 'actionD', options: { $depends: "$ref.rootB" } },
+        { id: 'final', action: 'actionFinal', options: { $depends: "$ref.stepC,$ref.stepD" } }
       ]
     }, LogLevel.ERROR);
 
@@ -79,8 +79,7 @@ describe('Exit-driven Execution', () => {
         { id: 'fetch', action: 'fetchData' },
         { 
           id: 'process', 
-          action: 'processData',
-          depends: ['fetch']
+          action: 'processData', options: { $depends: "$ref.fetch" }
         },
         { 
           id: 'validate', 
@@ -89,8 +88,7 @@ describe('Exit-driven Execution', () => {
         },
         { 
           id: 'save', 
-          action: 'saveData',
-          depends: ['process', 'validate']
+          action: 'saveData', options: { $depends: "$ref.process,$ref.validate" }
         }
       ]
     }, LogLevel.ERROR);
@@ -119,9 +117,9 @@ describe('Exit-driven Execution', () => {
     const workflow = new Workflow({
       steps: [
         { id: 'check', action: 'checkCondition', type: 'if' },
-        { id: 'trueAction', action: 'actionTrue', depends: ['check.true'] },
-        { id: 'falseAction', action: 'actionFalse', depends: ['check.false'] },
-        { id: 'merge', action: 'mergeResults', depends: ['trueAction,falseAction'] }
+        { id: 'trueAction', action: 'actionTrue', options: { $depends: "$ref.check.true" } },
+        { id: 'falseAction', action: 'actionFalse', options: { $depends: "$ref.check.false" } },
+        { id: 'merge', action: 'mergeResults', options: { $depends: "$ref.trueAction,$ref.falseAction" } }
       ]
     }, LogLevel.ERROR);
 
@@ -188,8 +186,7 @@ describe('Exit-driven Execution', () => {
         },
         { 
           id: 'summary', 
-          action: 'summarize',
-          depends: ['process']
+          action: 'summarize', options: { $depends: "$ref.process" }
         }
       ]
     }, LogLevel.ERROR);

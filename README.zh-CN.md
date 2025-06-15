@@ -273,10 +273,10 @@ await work.run({
 const workflow = new Workflow({
   steps: [
     { id: 'fetchData', action: 'fetchData' },
-    { id: 'processA', action: 'processA', depends: ['fetchData'] },
-    { id: 'processB', action: 'processB', depends: ['fetchData'] },
-    { id: 'unrelatedTask', action: 'unrelated', depends: ['fetchData'] }, // 不会运行
-    { id: 'mergeResults', action: 'merge', depends: ['processA', 'processB'] }
+    { id: 'processA', action: 'processA', options: { $depends: '$ref.fetchData' } },
+    { id: 'processB', action: 'processB', options: { $depends: '$ref.fetchData' } },
+    { id: 'unrelatedTask', action: 'unrelated', options: { $depends: '$ref.fetchData' } }, // 不会运行
+    { id: 'mergeResults', action: 'merge', options: { $depends: '$ref.processA,$ref.processB' } }
   ]
 });
 
@@ -318,7 +318,7 @@ await work.run({
 
 ### 1. 条件（if）
 
-Runback 支持通过 `type: 'if'` 来创建条件分支。条件步骤会返回一个布尔值，后续步骤可以通过 `depends` 属性指定在条件为 true 或 false 时执行。
+Runback 支持通过 `type: 'if'` 来创建条件分支。条件步骤会返回一个布尔值，后续步骤可以通过 `$ref` 引用来指定在条件为 true 或 false 时执行。任何 `$ref` 引用都会自动创建依赖关系。
 
 ```typescript
 // 定义动作
@@ -374,15 +374,19 @@ await work.step({
 await work.step({
   id: 'processAdminTask',
   action: 'processAdminTask',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkPermission.true']  // 只在权限检查通过时执行
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkPermission.true'  // 只在权限检查通过时执行
+  }
 });
 
 await work.step({
   id: 'handleNoPermission',
   action: 'handleNoPermission',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkPermission.false']  // 只在权限检查失败时执行
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkPermission.false'  // 只在权限检查失败时执行
+  }
 });
 
 // 执行工作流，指定入口步骤
@@ -392,17 +396,20 @@ await work.run({ entry: 'getUser' });
 在这个例子中：
 1. `checkPermission` 步骤被标记为条件步骤（`type: 'if'`）
 2. 条件步骤会返回一个布尔值（true/false）
-3. 后续步骤通过 `depends` 属性指定在什么条件下执行：
-   - `checkPermission.true` 表示在条件为 true 时执行
-   - `checkPermission.false` 表示在条件为 false 时执行
-4. 工作流会根据条件自动选择执行路径
+3. 后续步骤通过 `$ref` 引用指定在什么条件下执行：
+   - `$ref.checkPermission.true` 表示在条件为 true 时执行
+   - `$ref.checkPermission.false` 表示在条件为 false 时执行
+4. `$ref` 引用会自动创建依赖关系
+5. 工作流会根据条件自动选择执行路径
 
 ### 2. 分支汇聚
 
-在条件分支场景中，Runback 支持通过依赖语法来实现分支汇聚。框架支持 **AND** 和 **OR** 两种关系：
+在条件分支场景中，Runback 支持通过 `$ref` 引用来实现分支汇聚。所有依赖关系都通过标准的引用机制处理：
 
-- **AND 关系**：`depends: ['stepA', 'stepB']` - 等待所有步骤完成
-- **OR 关系**：`depends: ['stepA,stepB']` - 等待任意步骤完成（单个字符串中用逗号分隔）
+- **多重引用**：在不同字段中引用多个步骤
+- **备选引用**：使用逗号分隔的引用作为备选值：`'$ref.stepA,$ref.stepB'`（返回第一个可用的结果）
+- **条件引用**：引用特定的条件结果：`'$ref.checkStatus.true'`
+- **自动依赖**：任何 `$ref` 引用都会自动创建依赖关系
 
 ```typescript
 // 1. 获取用户信息
@@ -424,53 +431,47 @@ await work.step({
 await work.step({
   id: 'processActiveUser',
   action: 'processActiveUser',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkStatus.true']  // 用户活跃时执行
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkStatus.true'  // 用户活跃时执行
+  }
 });
 
 await work.step({
   id: 'sendWelcomeBack',
   action: 'sendWelcomeBack',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkStatus.false']  // 用户不活跃时执行
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkStatus.false'  // 用户不活跃时执行
+  }
 });
 
-// 4. 使用 OR 依赖的分支汇聚 - 任意前置步骤完成后执行
+// 4. 分支汇聚 - 前置步骤完成后执行
 await work.step({
   id: 'logUserActivity',
   action: 'logActivity',
   options: { 
     userId: '$ref.getUser.user.id',
-    timestamp: new Date().toISOString()
-  },
-  depends: ['processActiveUser,sendWelcomeBack']  // OR：任意一个步骤完成后执行
-});
-
-// 替代方案：AND 依赖 - 所有前置步骤完成后执行
-await work.step({
-  id: 'logAllActivity',
-  action: 'logAllActivity',
-  options: { 
-    userId: '$ref.getUser.user.id',
-    timestamp: new Date().toISOString()
-  },
-  depends: ['processActiveUser', 'sendWelcomeBack']  // AND：等待两个步骤都完成
+    timestamp: new Date().toISOString(),
+    result: '$ref.processActiveUser,$ref.sendWelcomeBack'  // 获取实际执行的步骤结果
+  }
 });
 
 // 5. 继续后续处理
 await work.step({
   id: 'continueProcessing',
   action: 'continueWorkflow',
-  options: {},
-  depends: ['logUserActivity']  // 等待日志记录完成
+  options: {
+    previousResult: '$ref.logUserActivity'  // 引用前一步骤的结果
+  }
 });
 ```
 
 在这个例子中：
 1. **条件执行**：根据状态只会执行 `processActiveUser` 或 `sendWelcomeBack` 其中一个
-2. **OR 合并**：`logUserActivity` 使用 `['processActiveUser,sendWelcomeBack']`（逗号分隔）在完成的分支结束后执行
-3. **AND 合并**：`logAllActivity` 使用 `['processActiveUser', 'sendWelcomeBack']`（分离的数组元素）等待两者都完成（虽然在条件场景中只会执行其中一个）
-4. **灵活合并**：条件分支选择 OR，并行执行场景选择 AND
+2. **备选合并**：`logUserActivity` 使用 `result: '$ref.processActiveUser,$ref.sendWelcomeBack'`（逗号分隔的引用）作为备选 - 它会获取实际执行的步骤的结果
+3. **分支汇聚**：由于条件分支中只会执行其中一个，逗号分隔的引用充当了从不同执行路径合并结果的方式
+4. **自然依赖**：步骤会在其引用的数据可用时自动执行
 
 ### 3. 数组处理（each）
 
@@ -742,15 +743,17 @@ await work.step({
 await work.step({
   id: 'processAdmin',
   action: 'processAdmin',
-  options: {},
-  depends: ['checkUser.true']  // 只有 checkUser 返回 true 时才会执行
+  options: {
+    trigger: '$ref.checkUser.true'  // 只有 checkUser 返回 true 时才会执行
+  }
 });
 
 await work.step({
   id: 'processNormalUser',
   action: 'processNormalUser',
-  options: {},
-  depends: ['checkUser.false']  // 只有 checkUser 返回 false 时才会执行
+  options: {
+    trigger: '$ref.checkUser.false'  // 只有 checkUser 返回 false 时才会执行
+  }
 });
 
 // 3. 合并分支结果 - 任意一个分支完成就会触发
@@ -804,8 +807,7 @@ interface Step {
   action: string;  // 要执行的动作名称
   type?: "if";  // 步骤类型，'if' 表示条件步骤
   name?: string;  // 步骤名称
-  options?: Record<string, any>;  // 传递给动作的参数
-  depends?: string[];  // 依赖的步骤
+  options?: Record<string, any>;  // 传递给动作的参数（使用 $ref 引用创建依赖关系）
   each?: string | any[];  // 用于迭代的数据引用或直接数组
 }
 ```

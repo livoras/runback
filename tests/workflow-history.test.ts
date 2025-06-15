@@ -22,19 +22,16 @@ describe('Workflow History', () => {
         { 
           id: 'checkAccess', 
           action: 'checkPermission', 
-          options: { role: '$ref.getUser.role' },
-          type: 'if',
-          depends: ['getUser']
+          options: { role: '$ref.getUser.role', $depends: "$ref.getUser" },
+          type: 'if'
         },
         { 
           id: 'logAccess', 
-          action: 'logAccess',
-          depends: ['checkAccess.true']
+          action: 'logAccess', options: { $depends: "$ref.checkAccess.true" }
         },
         { 
           id: 'fetchData', 
-          action: 'fetchData',
-          depends: ['getUser']
+          action: 'fetchData', options: { $depends: "$ref.getUser" }
         }
       ]
     })
@@ -60,7 +57,7 @@ describe('Workflow History', () => {
     
     // Verify mock functions were called correctly
     expect(mockActions.getUserInfo).toHaveBeenCalled()
-    expect(mockActions.checkPermission).toHaveBeenCalledWith({ role: 'admin' })
+    expect(mockActions.checkPermission).toHaveBeenCalledWith({ role: 'admin', $depends: expect.anything() })
     expect(mockActions.logAccess).toHaveBeenCalled()
     expect(mockActions.fetchData).toHaveBeenCalled()
     
@@ -74,8 +71,7 @@ describe('Workflow History', () => {
         { id: 'getUser', action: 'getUserInfo' },
         { 
           id: 'fetchData', 
-          action: 'fetchData',
-          depends: ['getUser']
+          action: 'fetchData', options: { $depends: "$ref.getUser" }
         }
       ]
     })
@@ -106,8 +102,7 @@ describe('Workflow History', () => {
           id: 'processItems',
           action: 'processItem',
           each: '$ref.getItems',
-          options: { item: '$ref.$item' },
-          depends: ['getItems']
+          options: { item: '$ref.$item' , $depends: "$ref.getItems"}
         }
       ]
     })
@@ -135,8 +130,8 @@ describe('Workflow History', () => {
     
     // Verify processItem was called with the expected arguments
     expect(processItemMock).toHaveBeenCalledTimes(2)
-    expect(processItemMock).toHaveBeenCalledWith({ item: 'data1' })
-    expect(processItemMock).toHaveBeenCalledWith({ item: 'data2' })
+    expect(processItemMock).toHaveBeenCalledWith({ item: 'data1', $depends: expect.anything() })
+    expect(processItemMock).toHaveBeenCalledWith({ item: 'data2', $depends: expect.anything() })
   })
 
   it('should handle workflow without history option', async () => {
@@ -164,8 +159,7 @@ describe('Workflow History', () => {
         { id: 'getUser', action: 'getUserInfo' },
         { 
           id: 'fetchData', 
-          action: 'fetchData',
-          depends: ['getUser']
+          action: 'fetchData', options: { $depends: "$ref.getUser" }
         }
       ]
     })
@@ -219,8 +213,7 @@ describe('Workflow History', () => {
         { id: 'counter', action: 'incrementCounter' },
         { 
           id: 'process', 
-          action: 'processData',
-          depends: ['counter']
+          action: 'processData', options: { $depends: "$ref.counter" }
         }
       ]
     })
@@ -286,8 +279,7 @@ describe('Workflow History', () => {
         },
         { 
           id: 'process', 
-          action: 'processAction',
-          depends: ['delay']
+          action: 'processAction', options: { $depends: "$ref.delay" }
         }
       ]
     })
@@ -428,8 +420,7 @@ describe('Workflow History', () => {
         // 第二个步骤将失败
         { 
           id: 'failStep', 
-          action: 'failStep',
-          depends: ['setupContext']
+          action: 'failStep', options: { $depends: "$ref.setupContext" }
         }
       ]
     });

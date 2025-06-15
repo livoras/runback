@@ -20,8 +20,8 @@ describe('onlyRuns functionality', () => {
     const workflow = new Workflow({
       steps: [
         { id: 'step1', action: 'step1' },
-        { id: 'step2', action: 'step2', depends: ['step1'] },
-        { id: 'step3', action: 'step3', depends: ['step2'] },
+        { id: 'step2', action: 'step2', options: { $depends: "$ref.step1" } },
+        { id: 'step3', action: 'step3', options: { $depends: "$ref.step2" } },
       ]
     })
 

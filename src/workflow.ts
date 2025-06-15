@@ -9,7 +9,6 @@ export type Step = {
   type?: "trigger" | "step" | "if",
   name?: string,
   options?: Record<string, any>,
-  depends?: string[],
   each?: string | any[],
 }
 
@@ -234,22 +233,10 @@ export class Workflow {
         throw new Error(`Step ${step.id} cannot use 'each' and 'if' simultaneously`)
       }
       
-      const depends = step.depends ?? []
+      // 从 options 中收集所有 $ref 依赖
       const optionsDeps = collectFromRefString(step.options || {})
+      const deps = [...Object.values(optionsDeps)] as (string | string[])[] 
       
-      // 处理逗号分隔的依赖：将 'stepA,stepB' 转换为 ['stepA', 'stepB']
-      const processedDepends: (string | string[])[] = []
-      for (const dep of depends) {
-        if (dep.includes(',')) {
-          // 如果包含逗号，分割成数组（OR关系）
-          processedDepends.push(dep.split(',').map(d => d.trim()))
-        } else {
-          // 单个依赖保持原样
-          processedDepends.push(dep)
-        }
-      }
-      
-      const deps = [...processedDepends, ...Object.values(optionsDeps)] as (string | string[])[] 
       if (step.each) {
         if (typeof step.each === 'string') {
           // 字符串形式的 each，直接添加依赖

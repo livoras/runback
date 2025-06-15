@@ -271,10 +271,10 @@ await work.run({
 const workflow = new Workflow({
   steps: [
     { id: 'fetchData', action: 'fetchData' },
-    { id: 'processA', action: 'processA', depends: ['fetchData'] },
-    { id: 'processB', action: 'processB', depends: ['fetchData'] },
-    { id: 'unrelatedTask', action: 'unrelated', depends: ['fetchData'] }, // Won't run
-    { id: 'mergeResults', action: 'merge', depends: ['processA', 'processB'] }
+    { id: 'processA', action: 'processA', options: { $depends: '$ref.fetchData' } },
+    { id: 'processB', action: 'processB', options: { $depends: '$ref.fetchData' } },
+    { id: 'unrelatedTask', action: 'unrelated', options: { $depends: '$ref.fetchData' } }, // Won't run
+    { id: 'mergeResults', action: 'merge', options: { $depends: '$ref.processA,$ref.processB' } }
   ]
 });
 
@@ -316,7 +316,7 @@ await work.run({
 
 ### 1. Conditions (if)
 
-Runback supports conditional branching via `type: 'if'`. Conditional steps return a boolean value, and subsequent steps can specify execution conditions using the `depends` property.
+Runback supports conditional branching via `type: 'if'`. Conditional steps return a boolean value, and subsequent steps can reference conditional outcomes using `$ref` syntax. Any `$ref` reference automatically creates a dependency relationship.
 
 ```typescript
 // Define actions
@@ -372,15 +372,19 @@ await work.step({
 await work.step({
   id: 'processAdminTask',
   action: 'processAdminTask',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkPermission.true']  // Execute only when permission check passes
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkPermission.true'  // Execute only when permission check passes
+  }
 });
 
 await work.step({
   id: 'handleNoPermission',
   action: 'handleNoPermission',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkPermission.false']  // Execute only when permission check fails
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkPermission.false'  // Execute only when permission check fails
+  }
 });
 
 // Execute workflow, specifying entry step
@@ -390,17 +394,20 @@ await work.run({ entry: 'getUser' });
 In this example:
 1. `checkPermission` step is marked as a conditional step (`type: 'if'`)
 2. Conditional step returns a boolean value (true/false)
-3. Subsequent steps specify execution conditions via `depends` property:
-   - `checkPermission.true` means execute when condition is true
-   - `checkPermission.false` means execute when condition is false
-4. Workflow automatically selects execution path based on conditions
+3. Subsequent steps reference conditional outcomes using `$ref`:
+   - `$ref.checkPermission.true` means execute when condition is true
+   - `$ref.checkPermission.false` means execute when condition is false
+4. The `$ref` references automatically create dependency relationships
+5. Workflow automatically selects execution path based on conditions
 
 ### 2. Branch Merge
 
-In conditional branching scenarios, Runback supports branch merging via dependency syntax. The framework supports both **AND** and **OR** relationships:
+In conditional branching scenarios, Runback supports branch merging through `$ref` references. All dependencies are handled through the standard reference mechanism:
 
-- **AND relationship**: `depends: ['stepA', 'stepB']` - Wait for ALL steps to complete
-- **OR relationship**: `depends: ['stepA,stepB']` - Wait for ANY step to complete (comma-separated in single string)
+- **Multiple references**: Reference multiple steps in different fields
+- **Fallback references**: Use comma-separated references for fallback values: `'$ref.stepA,$ref.stepB'` (returns first available result)
+- **Conditional references**: Reference specific conditional outcomes: `'$ref.checkStatus.true'`
+- **Automatic dependencies**: Any `$ref` reference automatically creates a dependency relationship
 
 ```typescript
 // 1. Get user info
@@ -422,53 +429,47 @@ await work.step({
 await work.step({
   id: 'processActiveUser',
   action: 'processActiveUser',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkStatus.true']  // Execute for active users
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkStatus.true'  // Execute for active users
+  }
 });
 
 await work.step({
   id: 'sendWelcomeBack',
   action: 'sendWelcomeBack',
-  options: { user: '$ref.getUser.user' },
-  depends: ['checkStatus.false']  // Execute for inactive users
+  options: { 
+    user: '$ref.getUser.user',
+    trigger: '$ref.checkStatus.false'  // Execute for inactive users
+  }
 });
 
-// 4. Branch merge using OR dependency - Execute when ANY predecessor completes
+// 4. Branch merge - Execute when predecessor completes
 await work.step({
   id: 'logUserActivity',
   action: 'logActivity',
   options: { 
     userId: '$ref.getUser.user.id',
-    timestamp: new Date().toISOString()
-  },
-  depends: ['processActiveUser,sendWelcomeBack']  // OR: Execute after EITHER step completes
-});
-
-// Alternative: AND dependency - Execute when ALL predecessors complete
-await work.step({
-  id: 'logAllActivity',
-  action: 'logAllActivity',
-  options: { 
-    userId: '$ref.getUser.user.id',
-    timestamp: new Date().toISOString()
-  },
-  depends: ['processActiveUser', 'sendWelcomeBack']  // AND: Wait for BOTH steps
+    timestamp: new Date().toISOString(),
+    result: '$ref.processActiveUser,$ref.sendWelcomeBack'  // Get result from whichever step executed
+  }
 });
 
 // 5. Continue processing
 await work.step({
   id: 'continueProcessing',
   action: 'continueWorkflow',
-  options: {},
-  depends: ['logUserActivity']  // Wait for logging to complete
+  options: {
+    previousResult: '$ref.logUserActivity'  // Reference previous step result
+  }
 });
 ```
 
 In this example:
 1. **Conditional execution**: Only one of `processActiveUser` or `sendWelcomeBack` will execute based on status
-2. **OR merge**: `logUserActivity` uses `['processActiveUser,sendWelcomeBack']` (comma-separated) to execute when the completed branch finishes
-3. **AND merge**: `logAllActivity` uses `['processActiveUser', 'sendWelcomeBack']` (separate array elements) to wait for both (though only one will actually execute in conditional scenarios)
-4. **Flexible merging**: Choose OR for conditional branches, AND for parallel execution scenarios
+2. **Fallback merge**: `logUserActivity` uses `result: '$ref.processActiveUser,$ref.sendWelcomeBack'` (comma-separated references) as fallback - it will get the result from whichever step actually executed
+3. **Branch convergence**: Since only one branch executes in conditional scenarios, the comma-separated reference acts as a way to merge results from alternative execution paths
+4. **Natural dependencies**: Steps automatically execute when their referenced data becomes available
 
 ### 3. Array Processing (each)
 
@@ -676,7 +677,7 @@ await work.step({
   options: { data: '$ref.getData.data' }
 });
 
-// 3. Combine results (depends on both processing steps)
+// 3. Combine results (references both processing steps)
 await work.step({
   id: 'combine',
   action: 'combineResults',
@@ -740,15 +741,17 @@ await work.step({
 await work.step({
   id: 'processAdmin',
   action: 'processAdmin',
-  options: {},
-  depends: ['checkUser.true']  // Only executes when checkUser returns true
+  options: {
+    trigger: '$ref.checkUser.true'  // Only executes when checkUser returns true
+  }
 });
 
 await work.step({
   id: 'processNormalUser',
   action: 'processNormalUser',
-  options: {},
-  depends: ['checkUser.false']  // Only executes when checkUser returns false
+  options: {
+    trigger: '$ref.checkUser.false'  // Only executes when checkUser returns false
+  }
 });
 
 // 3. Merge branch results - triggers when any branch completes
@@ -802,8 +805,7 @@ interface Step {
   action: string;  // Action name to execute
   type?: "if";  // Step type, 'if' indicates conditional step
   name?: string;  // Step name
-  options?: Record<string, any>;  // Parameters passed to action
-  depends?: string[];  // Dependent steps
+  options?: Record<string, any>;  // Parameters passed to action (use $depends for dependencies)
   each?: string | any[];  // Data reference for iteration or direct array
 }
 ```

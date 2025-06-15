@@ -84,7 +84,7 @@ describe('resume functionality', () => {
     const workflow = new Workflow({
       steps: [
         { id: 'step1', action: 'step1' },
-        { id: 'step2', action: 'step2', depends: ['step1'] },
+        { id: 'step2', action: 'step2', options: { $depends: "$ref.step1" } },
       ]
     })
 

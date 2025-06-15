@@ -133,8 +133,7 @@ describe('Workflow with entryOptions', () => {
         { 
           id: 'nextStep', 
           action: 'action2',
-          options: { param: 'value2' },
-          depends: ['entryStep']
+          options: { param: 'value2' , $depends: "$ref.entryStep"}
         }
       ]
     });
@@ -154,7 +153,7 @@ describe('Workflow with entryOptions', () => {
     // Assert
     // Entry step options should be overridden
     expect(mockAction1).toHaveBeenCalledWith({ param: 'overridden' });
-    // Non-entry step should keep original options
-    expect(mockAction2).toHaveBeenCalledWith({ param: 'value2' });
+    // Non-entry step should keep original options (including $depends)
+    expect(mockAction2).toHaveBeenCalledWith({ param: 'value2', $depends: expect.anything() });
   });
 });

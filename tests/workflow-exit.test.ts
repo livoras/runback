@@ -34,9 +34,9 @@ describe('Workflow Exit', () => {
       const wf = new Workflow({
         steps: [
           { id: 'step1', action: 'step1' },
-          { id: 'step2', action: 'step2', depends: ['step1'] },
-          { id: 'exitStep', action: 'exitStep', depends: ['step2'] },
-          { id: 'afterExit', action: 'afterExit', depends: ['exitStep'] } // 依赖 exitStep，不会在同一轮执行
+          { id: 'step2', action: 'step2', options: { $depends: "$ref.step1" } },
+          { id: 'exitStep', action: 'exitStep', options: { $depends: "$ref.step2" } },
+          { id: 'afterExit', action: 'afterExit', options: { $depends: "$ref.exitStep" } } // 依赖 exitStep，不会在同一轮执行
         ]
       })
 
@@ -57,8 +57,8 @@ describe('Workflow Exit', () => {
       const wf = new Workflow({
         steps: [
           { id: 'step1', action: 'step1' },
-          { id: 'step2', action: 'step2', depends: ['step1'] },
-          { id: 'step3', action: 'step3', depends: ['step2'] }
+          { id: 'step2', action: 'step2', options: { $depends: "$ref.step1" } },
+          { id: 'step3', action: 'step3', options: { $depends: "$ref.step2" } }
         ]
       })
 
@@ -78,9 +78,9 @@ describe('Workflow Exit', () => {
       const wf = new Workflow({
         steps: [
           { id: 'step1', action: 'step1' },
-          { id: 'step2', action: 'step2', depends: ['step1'] },
-          { id: 'exitStep', action: 'exitStep', depends: ['step1'] }, // 与 step2 并行
-          { id: 'afterExit', action: 'afterExit', depends: ['step2', 'exitStep'] } // 依赖 step2 和 exitStep，不会在同一轮执行
+          { id: 'step2', action: 'step2', options: { $depends: "$ref.step1" } },
+          { id: 'exitStep', action: 'exitStep', options: { $depends: "$ref.step1" } }, // 与 step2 并行
+          { id: 'afterExit', action: 'afterExit', options: { $depends: "$ref.step2,$ref.exitStep" } } // 依赖 step2 和 exitStep，不会在同一轮执行
         ]
       })
 
@@ -101,7 +101,7 @@ describe('Workflow Exit', () => {
       const wf = new Workflow({
         steps: [
           { id: 'exitStep', action: 'exitStep' },
-          { id: 'afterExit', action: 'afterExit', depends: ['exitStep'] }
+          { id: 'afterExit', action: 'afterExit', options: { $depends: "$ref.exitStep" } }
         ]
       })
 

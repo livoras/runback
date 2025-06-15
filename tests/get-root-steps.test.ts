@@ -6,8 +6,8 @@ describe('Workflow getRootSteps', () => {
     const workflow = new Workflow({
       steps: [
         { id: 'step1', action: 'action1' },
-        { id: 'step2', action: 'action2', depends: ['step1'] },
-        { id: 'step3', action: 'action3', depends: ['step2'] }
+        { id: 'step2', action: 'action2', options: { $depends: "$ref.step1" } },
+        { id: 'step3', action: 'action3', options: { $depends: "$ref.step2" } }
       ]
     }, LogLevel.ERROR);
 
@@ -29,9 +29,9 @@ describe('Workflow getRootSteps', () => {
       steps: [
         { id: 'root1', action: 'action1' },
         { id: 'root2', action: 'action2' },
-        { id: 'step3', action: 'action3', depends: ['root1'] },
-        { id: 'step4', action: 'action4', depends: ['root2'] },
-        { id: 'final', action: 'actionFinal', depends: ['step3', 'step4'] }
+        { id: 'step3', action: 'action3', options: { $depends: "$ref.root1" } },
+        { id: 'step4', action: 'action4', options: { $depends: "$ref.root2" } },
+        { id: 'final', action: 'actionFinal', options: { $depends: "$ref.step3,$ref.step4" } }
       ]
     }, LogLevel.ERROR);
 
@@ -93,9 +93,9 @@ describe('Workflow getRootSteps', () => {
     const workflow = new Workflow({
       steps: [
         { id: 'check', action: 'checkCondition', type: 'if' },
-        { id: 'trueAction', action: 'actionTrue', depends: ['check.true'] },
-        { id: 'falseAction', action: 'actionFalse', depends: ['check.false'] },
-        { id: 'merge', action: 'mergeResults', depends: ['trueAction', 'falseAction'] }
+        { id: 'trueAction', action: 'actionTrue', options: { $depends: "$ref.check.true" } },
+        { id: 'falseAction', action: 'actionFalse', options: { $depends: "$ref.check.false" } },
+        { id: 'merge', action: 'mergeResults', options: { $depends: "$ref.trueAction,$ref.falseAction" } }
       ]
     }, LogLevel.ERROR);
 
@@ -110,9 +110,8 @@ describe('Workflow getRootSteps', () => {
         { id: 'root2', action: 'action2' },
         { 
           id: 'step3', 
-          action: 'action3', 
-          depends: ['root1'],
-          options: { data: '$ref.root2.result' }
+          action: 'action3',
+          options: { $depends: "$ref.root1", data: '$ref.root2.result' }
         },
         { 
           id: 'step4', 
@@ -146,13 +145,12 @@ describe('Workflow getRootSteps', () => {
         { id: 'rootA', action: 'actionA' },
         { id: 'rootB', action: 'actionB' },
         { id: 'rootC', action: 'actionC' },
-        { id: 'stepD', action: 'actionD', depends: ['rootA', 'rootB'] },
-        { id: 'stepE', action: 'actionE', depends: ['rootC'] },
+        { id: 'stepD', action: 'actionD', options: { $depends: "$ref.rootA,$ref.rootB" } },
+        { id: 'stepE', action: 'actionE', options: { $depends: "$ref.rootC" } },
         { 
           id: 'stepF', 
-          action: 'actionF', 
-          depends: ['stepD'],
-          options: { data: '$ref.stepE.result' }
+          action: 'actionF',
+          options: { $depends: "$ref.stepD", data: '$ref.stepE.result' }
         }
       ]
     }, LogLevel.ERROR);
