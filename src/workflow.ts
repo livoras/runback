@@ -187,15 +187,7 @@ export class Workflow extends WorkflowEngine<Step> {
     return { list, prepareItemInput }
   }
 
-  protected updateContextWithResult(step: Step, result: any, ctx: any): void {
-    if (step.type === 'if') {
-      const branch = result ? 'true' : 'false'
-      ctx[`${step.id}.${branch}`] = true
-      this.logger.debug(`Conditional step ${step.id} branch: ${branch}`)
-    } else {
-      ctx[step.id] = result
-    }
-  }
+
   
   /**
    * 解析引用路径，处理 $ref. 前缀和数组索引语法

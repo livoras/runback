@@ -236,7 +236,15 @@ export abstract class WorkflowEngine<TStep = any> {
   protected abstract isEachStep(step: TStep): boolean
   protected abstract prepareStepInput(step: TStep, ctx: any): any
   protected abstract prepareEachStepInput(step: TStep, ctx: any): { list: any[], prepareItemInput: (item: any, index: number) => any }
-  protected abstract updateContextWithResult(step: TStep, result: any, ctx: any): void
+  protected updateContextWithResult(step: TStep, result: any, ctx: any): void {
+    if ((step as any).type === 'if') {
+      const branch = result ? 'true' : 'false'
+      ctx[`${(step as any).id}.${branch}`] = true
+      this.logger.debug(`Conditional step ${(step as any).id} branch: ${branch}`)
+    } else {
+      ctx[(step as any).id] = result
+    }
+  }
 
   // 通用的步骤执行模板方法
   protected async executeStepLogic(
