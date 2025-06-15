@@ -1,5 +1,5 @@
 import { collect, collectFromRefString, inject } from "./ref"
-import { WorkflowEngine, RunOptions, RunHistoryRecord } from "./workflow-engine"
+import { WorkflowEngine, RunOptions, RunHistoryRecord, getPrefixes, getByPath } from "./workflow-engine"
 import { LogLevel } from "./logger"
 
 export type Step = {
@@ -18,34 +18,7 @@ export type WorkflowOptions = {
 // 重新导出引擎中的类型
 export { RunStatus, RunHistoryRecord, RunOptions } from "./workflow-engine"
 
-/**
- * 获取路径的所有前缀
- * @param path 路径字符串
- * @returns 前缀数组
- */
-const getPrefixes = (path: string) => {
-  const parts = path.split('.')
-  return parts.map((_, i) => parts.slice(0, i + 1).join('.'))
-}
 
-
-
-/**
- * 根据路径获取对象中的值
- * @param o 对象
- * @param p 路径字符串
- * @returns 路径对应的值
- */
-const getByPath = (o: any, p: string) => {
-  return p.split('.').reduce((a, k) => {
-    if (a == null) return undefined
-    // 如果键是数字字符串且当前对象是数组，则转换为数字索引
-    if (Array.isArray(a) && /^\d+$/.test(k)) {
-      return a[parseInt(k, 10)]
-    }
-    return a[k]
-  }, o)
-}
 
 export class Workflow extends WorkflowEngine<Step> {
   public entry: string | undefined
@@ -105,25 +78,13 @@ export class Workflow extends WorkflowEngine<Step> {
   }
 
   checkDepsValid(deps: (string | string[])[], idsSet: Set<string>, stepId: string) {
-    deps.forEach(dep => {
-      const ensureDep = (depItem: string) => {
-        const root = depItem.split('.')[0]
-        if (['$item', '$index'].includes(root)) {
-          return
-        }
-        if (!idsSet.has(root)) {
-          throw new Error(`Step ${stepId} depends on non-existent step: ${depItem}`)
-        }
-      }
+    this.validateDependencies(deps, idsSet, stepId)
+  }
 
-      if (typeof dep === 'string') {
-        ensureDep(dep)
-      } else {
-        dep.forEach(d => {
-          ensureDep(d)
-        })
-      }
-    })
+  // 实现特殊依赖识别 - V1 特定
+  protected isSpecialDependency(dep: string): boolean {
+    const root = dep.split('.')[0]
+    return ['$item', '$index'].includes(root)
   }
 
   /**
@@ -188,12 +149,13 @@ export class Workflow extends WorkflowEngine<Step> {
     return result
   }
 
-  protected applyEntryOptions(step: Step, entryOptions: any): void {
-    // Merge entryOptions with existing options, with entryOptions taking precedence
-    step.options = {
-      ...(step.options || {}),
-      ...entryOptions
-    };
+  // 实现选项访问抽象方法 - V1 特定
+  protected getStepOptions(step: Step): any {
+    return step.options
+  }
+
+  protected setStepOptions(step: Step, options: any): void {
+    step.options = options
   }
 
   // 实现步骤执行抽象方法 - V1 特定实现

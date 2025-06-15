@@ -57,6 +57,33 @@ const clone = (obj: any) => {
   return JSON.parse(JSON.stringify(obj))
 }
 
+/**
+ * 获取路径的所有前缀 - 通用工具函数
+ * @param path 路径字符串
+ * @returns 前缀数组
+ */
+export const getPrefixes = (path: string) => {
+  const parts = path.split('.')
+  return parts.map((_, i) => parts.slice(0, i + 1).join('.'))
+}
+
+/**
+ * 根据路径获取对象中的值 - 通用工具函数
+ * @param o 对象
+ * @param p 路径字符串
+ * @returns 路径对应的值
+ */
+export const getByPath = (o: any, p: string) => {
+  return p.split('.').reduce((a, k) => {
+    if (a == null) return undefined
+    // 如果键是数字字符串且当前对象是数组，则转换为数字索引
+    if (Array.isArray(a) && /^\d+$/.test(k)) {
+      return a[parseInt(k, 10)]
+    }
+    return a[k]
+  }, o)
+}
+
 // 执行记录管理函数
 const createRunningRecord = (): RunHistoryRecord => {
   return {
@@ -139,7 +166,15 @@ export abstract class WorkflowEngine<TStep = any> {
   
   // 可运行步骤判断的抽象方法
   protected abstract isStepDependenciesSatisfied(step: TStep, setKeys: Set<string>, depsCache: Map<string, boolean>): boolean
-  protected abstract applyEntryOptions(step: TStep, entryOptions: any): void
+  protected abstract getStepOptions(step: TStep): any
+  protected abstract setStepOptions(step: TStep, options: any): void
+
+  // 通用的选项合并逻辑
+  protected applyEntryOptions(step: TStep, entryOptions: any): void {
+    const currentOptions = this.getStepOptions(step) || {}
+    const mergedOptions = { ...currentOptions, ...entryOptions }
+    this.setStepOptions(step, mergedOptions)
+  }
 
   // 通用的可运行步骤判断逻辑
   protected getAllRunnableSteps(
@@ -274,6 +309,30 @@ export abstract class WorkflowEngine<TStep = any> {
   protected abstract getStepDependencies(stepId: string): (string | string[])[]
   protected abstract extractStepIdFromDependency(dep: string): string | null
   protected abstract stepExists(stepId: string): boolean
+  protected abstract isSpecialDependency(dep: string): boolean
+
+  // 通用的依赖验证框架
+  protected validateDependencies(deps: (string | string[])[], allStepIds: Set<string>, stepId: string): void {
+    deps.forEach(dep => {
+      if (typeof dep === 'string') {
+        this.validateSingleDependency(dep, allStepIds, stepId)
+      } else {
+        dep.forEach(d => this.validateSingleDependency(d, allStepIds, stepId))
+      }
+    })
+  }
+
+  private validateSingleDependency(dep: string, allStepIds: Set<string>, stepId: string): void {
+    // 跳过特殊依赖
+    if (this.isSpecialDependency(dep)) {
+      return
+    }
+    
+    const rootStepId = dep.split('.')[0]
+    if (!allStepIds.has(rootStepId)) {
+      throw new Error(`Step ${stepId} depends on non-existent step: ${dep}`)
+    }
+  }
 
   // 公开 API - 基于抽象方法的通用实现
   getRootSteps(stepId: string): string[] {
